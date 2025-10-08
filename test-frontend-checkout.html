@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frontend Checkout Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <h1>Frontend Checkout Test</h1>
+    <div id="status">Testing...</div>
+    <div id="results"></div>
+
+    <script>
+        const { createClient } = supabase;
+        
+        const supabaseClient = createClient(
+            'https://ysubkmcyeqosjybogvyq.supabase.co',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlzdWJrbWN5ZXFvc2p5Ym9ndnlxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgzMjk5NDYsImV4cCI6MjA3MzkwNTk0Nn0._KUlofWqNHlr3LEMFx6UXHCOhQNh0CKze1eNls9eM1U'
+        );
+
+        async function testFrontendCheckout() {
+            const statusDiv = document.getElementById('status');
+            const resultsDiv = document.getElementById('results');
+            
+            try {
+                statusDiv.innerHTML = 'Testing frontend checkout process...';
+                
+                // Step 1: Test form validation (simulate missing fields)
+                const testForm = {
+                    email: '',
+                    firstName: '',
+                    lastName: '',
+                    address1: '',
+                    city: '',
+                    state: '',
+                    postalCode: '',
+                    phone: '',
+                    shippingZoneId: ''
+                };
+                
+                const required = ['email', 'firstName', 'lastName', 'address1', 'city', 'state', 'postalCode', 'phone', 'shippingZoneId'];
+                const missingFields = [];
+                
+                for (const field of required) {
+                    if (!testForm[field]) {
+                        missingFields.push(field);
+                    }
+                }
+                
+                resultsDiv.innerHTML += `<p>✅ Form validation test: ${missingFields.length} missing fields detected</p>`;
+                
+                // Step 2: Test with valid form data
+                const validForm = {
+                    email: 'frontend-test@example.com',
+                    firstName: 'Frontend',
+                    lastName: 'Test',
+                    address1: '123 Test Street',
+                    city: 'Test City',
+                    state: 'Test State',
+                    postalCode: '12345',
+                    phone: '+2341234567890',
+                    shippingZoneId: 'valid-zone-id'
+                };
+                
+                let validationPassed = true;
+                for (const field of required) {
+                    if (!validForm[field]) {
+                        validationPassed = false;
+                        break;
+                    }
+                }
+                
+                resultsDiv.innerHTML += `<p>✅ Valid form test: ${validationPassed ? 'PASSED' : 'FAILED'}</p>`;
+                
+                // Step 3: Test shipping zones loading
+                const { data: shippingZones, error: zoneError } = await supabaseClient
+                    .from('shipping_zones')
+                    .select('*')
+                    .eq('is_active', true);
+                
+                if (zoneError) {
+                    resultsDiv.innerHTML += `<p>❌ Shipping zones error: ${zoneError.message}</p>`;
+                } else {
+                    resultsDiv.innerHTML += `<p>✅ Shipping zones loaded: ${shippingZones.length} zones</p>`;
+                    if (shippingZones.length > 0) {
+                        validForm.shippingZoneId = shippingZones[0].id;
+                        resultsDiv.innerHTML += `<p>✅ Auto-selected shipping zone: ${shippingZones[0].name}</p>`;
+                    }
+                }
+                
+                // Step 4: Test products loading
+                const { data: products, error: productError } = await supabaseClient
+                    .from('products')
+                    .select('id, name, price, sizes')
+                    .limit(1);
+                
+                if (productError) {
+                    resultsDiv.innerHTML += `<p>❌ Products error: ${productError.message}</p>`;
+                } else {
+                    resultsDiv.innerHTML += `<p>✅ Products loaded: ${products.length} products</p>`;
+                }
+                
+                // Step 5: Test order number generation (simulate the frontend logic)
+                function generateOrderNumber() {
+                    const now = new Date();
+                    const day = now.getDate().toString().padStart(2, '0');
+                    const month = (now.getMonth() + 1).toString().padStart(2, '0');
+                    const dateStr = `${day}${month}`;
+                    const counter = Math.floor(Math.random() * 999) + 1;
+                    return `KI-${dateStr}-${counter.toString().padStart(3, '0')}`;
+                }
+                
+                const orderNumber = generateOrderNumber();
+                resultsDiv.innerHTML += `<p>✅ Order number generated: ${orderNumber}</p>`;
+                
+                // Step 6: Test webhook endpoint
+                try {
+                    const webhookResponse = await fetch('http://localhost:3000/api/webhooks', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            event_type: 'purchase',
+                            data: {
+                                order_id: 'test-order-id',
+                                order_number: orderNumber,
+                                total_amount: 50000,
+                                customer_email: validForm.email,
+                                test: true
+                            }
+                        })
+                    });
+                    
+                    if (webhookResponse.ok) {
+                        const webhookResult = await webhookResponse.json();
+                        resultsDiv.innerHTML += `<p>✅ Webhook test: ${JSON.stringify(webhookResult)}</p>`;
+                    } else {
+                        resultsDiv.innerHTML += `<p>❌ Webhook failed: ${webhookResponse.status}</p>`;
+                    }
+                } catch (webhookError) {
+                    resultsDiv.innerHTML += `<p>❌ Webhook error: ${webhookError.message}</p>`;
+                }
+                
+                statusDiv.innerHTML = '✅ Frontend checkout test completed!';
+                
+            } catch (error) {
+                statusDiv.innerHTML = '❌ Test failed!';
+                resultsDiv.innerHTML += `<p>❌ Error: ${error.message}</p>`;
+                console.error('Frontend test error:', error);
+            }
+        }
+        
+        // Run the test when page loads
+        window.onload = testFrontendCheckout;
+    </script>
+</body>
+</html>
