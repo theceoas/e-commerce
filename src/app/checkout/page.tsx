@@ -524,35 +524,36 @@ export default function CheckoutPage() {
       {/* Header */}
       <div className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+          <div className="flex items-center justify-between h-14 sm:h-16">
             <Link href="/cart" className="flex items-center text-gray-600 hover:text-orange-600 transition-colors">
-              <ArrowLeft className="w-5 h-5 mr-2" />
-              Back to Cart
+              <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" />
+              <span className="text-sm sm:text-base">Back to Cart</span>
             </Link>
-            <h1 className="text-xl font-semibold text-gray-900">Checkout</h1>
-            <div className="flex items-center space-x-2">
-              <Lock className="w-5 h-5 text-orange-600" />
-              <span className="text-sm text-gray-600">Secure Checkout</span>
+            <h1 className="text-lg sm:text-xl font-semibold text-gray-900">Checkout</h1>
+            <div className="flex items-center space-x-1 sm:space-x-2">
+              <Lock className="w-4 h-4 sm:w-5 sm:h-5 text-orange-600" />
+              <span className="text-xs sm:text-sm text-gray-600 hidden sm:inline">Secure Checkout</span>
+              <span className="text-xs text-gray-600 sm:hidden">Secure</span>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
           {/* Checkout Form */}
           <div className="space-y-6">
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Contact Information */}
-              <div className="bg-white rounded-lg shadow-sm border p-6">
+              <div className="bg-white rounded-lg shadow-sm border p-4 sm:p-6">
                 <div className="flex items-center space-x-2 mb-4">
-                  <Mail className="w-5 h-5 text-orange-600" />
-                  <h2 className="text-lg font-semibold">Contact Information</h2>
+                  <Mail className="w-4 h-4 sm:w-5 sm:h-5 text-orange-600" />
+                  <h2 className="text-base sm:text-lg font-semibold">Contact Information</h2>
                 </div>
                 
                 <div className="space-y-4">
                   <div>
-                    <Label htmlFor="email">Email Address</Label>
+                    <Label htmlFor="email" className="text-sm">Email Address</Label>
                     <Input
                       id="email"
                       type="email"
@@ -561,27 +562,29 @@ export default function CheckoutPage() {
                       placeholder="your@email.com"
                       required
                       disabled={!!user}
+                      className="mt-1"
                     />
                   </div>
                   
                   {!user && (
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-start space-x-2">
                       <Checkbox
                         id="createAccount"
                         checked={form.createAccount}
                         onCheckedChange={(checked) => handleInputChange('createAccount', checked as boolean)}
+                        className="mt-1"
                       />
-                      <Label htmlFor="createAccount" className="text-sm font-normal">
+                      <Label htmlFor="createAccount" className="text-xs sm:text-sm font-normal leading-relaxed">
                         Create an account for faster checkout next time
                       </Label>
                     </div>
                   )}
                   
                   {!user && form.createAccount && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <Label htmlFor="password">Password</Label>
-                        <div className="relative">
+                        <Label htmlFor="password" className="text-sm">Password</Label>
+                        <div className="relative mt-1">
                           <Input
                             id="password"
                             type={showPassword ? 'text' : 'password'}
@@ -687,65 +690,70 @@ export default function CheckoutPage() {
 
               {/* Shipping Address */}
               {(!user || !selectedAddressId) && (
-                <div className="bg-white rounded-lg shadow-sm border p-6">
+                <div className="bg-white rounded-lg shadow-sm border p-4 sm:p-6">
                   <div className="flex items-center space-x-2 mb-4">
-                    <MapPin className="w-5 h-5 text-orange-600" />
-                    <h2 className="text-lg font-semibold">Shipping Address</h2>
+                    <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-orange-600" />
+                    <h2 className="text-base sm:text-lg font-semibold">Shipping Address</h2>
                   </div>
                   
                   <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <Label htmlFor="firstName">First Name</Label>
+                        <Label htmlFor="firstName" className="text-sm">First Name</Label>
                         <Input
                           id="firstName"
                           value={form.firstName}
                           onChange={(e) => handleInputChange('firstName', e.target.value)}
                           required
+                          className="mt-1"
                         />
                       </div>
                       <div>
-                        <Label htmlFor="lastName">Last Name</Label>
+                        <Label htmlFor="lastName" className="text-sm">Last Name</Label>
                         <Input
                           id="lastName"
                           value={form.lastName}
                           onChange={(e) => handleInputChange('lastName', e.target.value)}
                           required
+                          className="mt-1"
                         />
                       </div>
                     </div>
                     
                     <div>
-                      <Label htmlFor="company">Company (Optional)</Label>
+                      <Label htmlFor="company" className="text-sm">Company (Optional)</Label>
                       <Input
                         id="company"
                         value={form.company}
                         onChange={(e) => handleInputChange('company', e.target.value)}
+                        className="mt-1"
                       />
                     </div>
                     
                     <div>
-                      <Label htmlFor="address1">Address Line 1</Label>
+                      <Label htmlFor="address1" className="text-sm">Address Line 1</Label>
                       <Input
                         id="address1"
                         value={form.address1}
                         onChange={(e) => handleInputChange('address1', e.target.value)}
                         required
+                        className="mt-1"
                       />
                     </div>
                     
                     <div>
-                      <Label htmlFor="address2">Address Line 2 (Optional)</Label>
+                      <Label htmlFor="address2" className="text-sm">Address Line 2 (Optional)</Label>
                       <Input
                         id="address2"
                         value={form.address2}
                         onChange={(e) => handleInputChange('address2', e.target.value)}
+                        className="mt-1"
                       />
                     </div>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                       <div>
-                        <Label htmlFor="city">City</Label>
+                        <Label htmlFor="city" className="text-sm">City</Label>
                         <Input
                           id="city"
                           value={form.city}
@@ -754,7 +762,7 @@ export default function CheckoutPage() {
                         />
                       </div>
                       <div>
-                        <Label htmlFor="state">State</Label>
+                        <Label htmlFor="state" className="text-sm">State</Label>
                         <Input
                           id="state"
                           value={form.state}
@@ -763,7 +771,7 @@ export default function CheckoutPage() {
                         />
                       </div>
                       <div>
-                        <Label htmlFor="postalCode">Postal Code</Label>
+                        <Label htmlFor="postalCode" className="text-sm">Postal Code</Label>
                         <Input
                           id="postalCode"
                           value={form.postalCode}
@@ -774,7 +782,7 @@ export default function CheckoutPage() {
                     </div>
                     
                     <div>
-                      <Label htmlFor="phone">Phone Number</Label>
+                      <Label htmlFor="phone" className="text-sm">Phone Number</Label>
                       <Input
                         id="phone"
                         type="tel"
@@ -878,29 +886,29 @@ export default function CheckoutPage() {
 
           {/* Order Summary */}
           <div className="lg:sticky lg:top-8 lg:h-fit">
-            <div className="bg-white rounded-lg shadow-sm border p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Order Summary</h2>
+            <div className="bg-white rounded-lg shadow-sm border p-4 sm:p-6">
+              <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-4">Order Summary</h2>
               
               {/* Promotion Code Section */}
               {!appliedPromotion && (
-                <div className="mb-6 p-4 bg-orange-50 rounded-lg border border-orange-200">
+                <div className="mb-6 p-3 sm:p-4 bg-orange-50 rounded-lg border border-orange-200">
                   <div className="flex items-center gap-2 mb-3">
                     <Tag className="w-4 h-4 text-orange-600" />
-                    <span className="text-sm font-medium text-orange-800">Have a coupon code?</span>
+                    <span className="text-xs sm:text-sm font-medium text-orange-800">Have a coupon code?</span>
                   </div>
                   <div className="flex gap-2">
                     <Input
                       placeholder="Enter coupon code"
                       value={promoCode}
                       onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-                      className="flex-1 border-orange-200 focus:border-orange-400 focus:ring-orange-400"
+                      className="flex-1 border-orange-200 focus:border-orange-400 focus:ring-orange-400 text-sm"
                       disabled={promotionLoading}
                     />
                     <Button
                       onClick={handleApplyPromoCode}
                       disabled={!promoCode.trim() || promotionLoading || !user}
                       size="sm"
-                      className="bg-orange-500 hover:bg-orange-600 text-white"
+                      className="bg-orange-500 hover:bg-orange-600 text-white text-xs sm:text-sm px-3"
                     >
                       {promotionLoading ? 'Applying...' : 'Apply'}
                     </Button>
@@ -915,11 +923,11 @@ export default function CheckoutPage() {
 
               {/* Applied Promotion Display */}
               {appliedPromotion && (
-                <div className="mb-6 p-4 bg-green-50 rounded-lg border border-green-200">
+                <div className="mb-6 p-3 sm:p-4 bg-green-50 rounded-lg border border-green-200">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Tag className="w-4 h-4 text-green-600" />
-                      <span className="text-sm font-medium text-green-800">
+                      <span className="text-xs sm:text-sm font-medium text-green-800">
                         {appliedPromotion.code} Applied
                       </span>
                     </div>
@@ -927,7 +935,7 @@ export default function CheckoutPage() {
                       onClick={handleRemovePromoCode}
                       variant="ghost"
                       size="sm"
-                      className="text-green-600 hover:text-green-700 hover:bg-green-100"
+                      className="text-green-600 hover:text-green-700 hover:bg-green-100 p-1"
                     >
                       <X className="w-4 h-4" />
                     </Button>

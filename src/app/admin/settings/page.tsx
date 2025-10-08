@@ -420,16 +420,16 @@ export default function AdminSettingsPage() {
   }
 
   return (
-    <div className="container mx-auto p-6">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold">Settings</h1>
-        <p className="text-gray-600 mt-2">Manage webhooks and shipping configurations</p>
+    <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-6">
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold">Settings</h1>
+        <p className="text-gray-600 mt-2 text-sm sm:text-base">Manage webhooks and shipping configurations</p>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="webhooks">Webhooks</TabsTrigger>
-          <TabsTrigger value="shipping">Shipping Zones</TabsTrigger>
+          <TabsTrigger value="webhooks" className="text-sm">Webhooks</TabsTrigger>
+          <TabsTrigger value="shipping" className="text-sm">Shipping Zones</TabsTrigger>
         </TabsList>
 
         <TabsContent value="webhooks" className="space-y-6">
@@ -441,12 +441,12 @@ export default function AdminSettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 <div>
                   <Label htmlFor="event-type">Event Type</Label>
                   <select
                     id="event-type"
-                    className="w-full p-2 border rounded-md"
+                    className="w-full p-2 border rounded-md text-sm"
                     value={newWebhook.event_type}
                     onChange={(e) => setNewWebhook({
                       ...newWebhook,
@@ -469,10 +469,11 @@ export default function AdminSettingsPage() {
                       ...newWebhook,
                       url: e.target.value
                     })}
+                    className="text-sm"
                   />
                 </div>
                 <div className="flex items-end">
-                  <Button onClick={saveWebhook} className="w-full">
+                  <Button onClick={saveWebhook} className="w-full text-sm">
                     <Plus className="w-4 h-4 mr-2" />
                     Add Webhook
                   </Button>
@@ -491,10 +492,10 @@ export default function AdminSettingsPage() {
               ) : (
                 <div className="space-y-4">
                   {webhooks.map((webhook) => (
-                    <div key={webhook.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div key={webhook.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg gap-4">
                       <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium capitalize">{webhook.event_type.replace('_', ' ')}</span>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium capitalize text-sm sm:text-base">{webhook.event_type.replace('_', ' ')}</span>
                           <span className={`px-2 py-1 text-xs rounded-full ${
                             webhook.is_active 
                               ? 'bg-green-100 text-green-800' 
@@ -503,20 +504,23 @@ export default function AdminSettingsPage() {
                             {webhook.is_active ? 'Active' : 'Inactive'}
                           </span>
                         </div>
-                        <p className="text-sm text-gray-600 mt-1">{webhook.url}</p>
+                        <p className="text-sm text-gray-600 mt-1 break-all">{webhook.url}</p>
                       </div>
                       <div className="flex items-center gap-2">
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => testWebhook(webhook)}
+                          className="flex-1 sm:flex-none"
                         >
                           <TestTube className="w-4 h-4" />
+                          <span className="sm:hidden ml-1">Test</span>
                         </Button>
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => toggleWebhookStatus(webhook.id!, !webhook.is_active)}
+                          className="flex-1 sm:flex-none text-xs sm:text-sm"
                         >
                           {webhook.is_active ? 'Disable' : 'Enable'}
                         </Button>
@@ -524,8 +528,10 @@ export default function AdminSettingsPage() {
                           variant="destructive"
                           size="sm"
                           onClick={() => deleteWebhook(webhook.id!)}
+                          className="flex-1 sm:flex-none"
                         >
                           <Trash2 className="w-4 h-4" />
+                          <span className="sm:hidden ml-1">Delete</span>
                         </Button>
                       </div>
                     </div>
@@ -545,7 +551,7 @@ export default function AdminSettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
                   <Label htmlFor="zone-name">Zone Name</Label>
                   <Input
@@ -556,6 +562,7 @@ export default function AdminSettingsPage() {
                       ...newShippingZone,
                       name: e.target.value
                     })}
+                    className="text-sm"
                   />
                 </div>
                 <div>
@@ -571,6 +578,7 @@ export default function AdminSettingsPage() {
                       ...newShippingZone,
                       price: parseFloat(e.target.value) || 0
                     })}
+                    className="text-sm"
                   />
                 </div>
                 <div>
@@ -583,10 +591,11 @@ export default function AdminSettingsPage() {
                       ...newShippingZone,
                       description: e.target.value
                     })}
+                    className="text-sm"
                   />
                 </div>
                 <div className="flex items-end">
-                  <Button onClick={saveShippingZone} className="w-full">
+                  <Button onClick={saveShippingZone} className="w-full text-sm">
                     <Plus className="w-4 h-4 mr-2" />
                     Add Zone
                   </Button>
@@ -605,11 +614,11 @@ export default function AdminSettingsPage() {
               ) : (
                 <div className="space-y-4">
                   {shippingZones.map((zone) => (
-                    <div key={zone.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div key={zone.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg gap-4">
                       <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{zone.name}</span>
-                          <span className="font-semibold text-green-600">₦{zone.price.toLocaleString()}</span>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium text-sm sm:text-base">{zone.name}</span>
+                          <span className="font-semibold text-green-600 text-sm sm:text-base">₦{zone.price.toLocaleString()}</span>
                           <span className={`px-2 py-1 text-xs rounded-full ${
                             zone.is_active 
                               ? 'bg-green-100 text-green-800' 
@@ -627,6 +636,7 @@ export default function AdminSettingsPage() {
                           variant="outline"
                           size="sm"
                           onClick={() => toggleShippingZoneStatus(zone.id!, !zone.is_active)}
+                          className="flex-1 sm:flex-none text-xs sm:text-sm"
                         >
                           {zone.is_active ? 'Disable' : 'Enable'}
                         </Button>
@@ -634,8 +644,10 @@ export default function AdminSettingsPage() {
                           variant="destructive"
                           size="sm"
                           onClick={() => deleteShippingZone(zone.id!)}
+                          className="flex-1 sm:flex-none"
                         >
                           <Trash2 className="w-4 h-4" />
+                          <span className="sm:hidden ml-1">Delete</span>
                         </Button>
                       </div>
                     </div>

@@ -146,19 +146,21 @@ export default function AdminDashboard() {
         {/* Header */}
         <header className="border-b border-gray-200 bg-white/80 backdrop-blur-sm sticky top-0 z-40 shadow-sm">
           <div className="container mx-auto px-4 py-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-black">Admin Dashboard</h1>
-              <p className="text-gray-600">Manage your fashion e-commerce store</p>
+              <h1 className="text-xl sm:text-2xl font-bold text-black">Admin Dashboard</h1>
+              <p className="text-sm sm:text-base text-gray-600">Manage your fashion e-commerce store</p>
             </div>
-            <div className="flex items-center gap-3">
-              <Button variant="outline" onClick={handleViewSite} className="border-gray-200 hover:bg-gray-50">
-                <Eye className="w-4 h-4 mr-2" />
-                View Site
+            <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+              <Button variant="outline" onClick={handleViewSite} className="border-gray-200 hover:bg-gray-50 flex-1 sm:flex-none text-xs sm:text-sm">
+                <Eye className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">View Site</span>
+                <span className="sm:hidden">View</span>
               </Button>
-              <Button onClick={handleLogout} className="bg-yellow-500 hover:bg-yellow-600 text-black">
-                <LogOut className="w-4 h-4 mr-2" />
-                Logout
+              <Button onClick={handleLogout} className="bg-yellow-500 hover:bg-yellow-600 text-black flex-1 sm:flex-none text-xs sm:text-sm">
+                <LogOut className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Logout</span>
+                <span className="sm:hidden">Exit</span>
               </Button>
             </div>
           </div>
@@ -256,23 +258,24 @@ export default function AdminDashboard() {
           >
             <Card className="bg-white/90 shadow-lg border-0">
               <CardHeader>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
-                    <CardTitle className="text-black">Products</CardTitle>
-                    <CardDescription className="text-gray-600">Manage your product catalog</CardDescription>
+                    <CardTitle className="text-sm sm:text-base text-black">Products</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm text-gray-600">Manage your product catalog</CardDescription>
                   </div>
-                  <Button size="sm" className="bg-yellow-500 hover:bg-yellow-600 text-black">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Product
+                  <Button size="sm" className="bg-yellow-500 hover:bg-yellow-600 text-black text-xs sm:text-sm w-full sm:w-auto">
+                    <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                    <span className="hidden sm:inline">Add Product</span>
+                    <span className="sm:hidden">Add</span>
                   </Button>
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   {products.slice(0, 5).map((product) => (
-                    <div key={product.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:shadow-md transition-shadow">
+                    <div key={product.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 border border-gray-200 rounded-lg hover:shadow-md transition-shadow gap-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gray-100 rounded-md overflow-hidden">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gray-100 rounded-md overflow-hidden flex-shrink-0">
                           {product.thumbnail_url ? (
                             <img 
                               src={product.thumbnail_url} 
@@ -281,20 +284,20 @@ export default function AdminDashboard() {
                             />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center">
-                              <Package className="w-5 h-5 text-gray-500" />
+                              <Package className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500" />
                             </div>
                           )}
                         </div>
-                        <div>
-                          <p className="font-medium text-sm text-black">{product.name}</p>
-                          <p className="text-xs text-gray-600">Product ID: {product.id.slice(0, 8)}</p>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-xs sm:text-sm text-black truncate">{product.name}</p>
+                          <p className="text-xs text-gray-600">ID: {product.id.slice(0, 8)}</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant={product.in_stock ? "default" : "secondary"} className={product.in_stock ? "bg-green-400 text-black" : ""}>
-                          {product.in_stock ? "In Stock" : "Out of Stock"}
+                      <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-2">
+                        <Badge variant={product.in_stock ? "default" : "secondary"} className={`text-xs ${product.in_stock ? "bg-green-400 text-black" : ""}`}>
+                          {product.in_stock ? "In Stock" : "Out"}
                         </Badge>
-                        <span className="font-medium text-black">₦{product.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        <span className="font-medium text-xs sm:text-sm text-black">₦{product.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                       </div>
                     </div>
                   ))}
@@ -311,26 +314,26 @@ export default function AdminDashboard() {
           >
             <Card className="bg-white/90 shadow-lg border-0">
               <CardHeader>
-                <CardTitle className="text-black">Recent Orders</CardTitle>
-                <CardDescription className="text-gray-600">Latest customer orders</CardDescription>
+                <CardTitle className="text-sm sm:text-base text-black">Recent Orders</CardTitle>
+                <CardDescription className="text-xs sm:text-sm text-gray-600">Latest customer orders</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   {orders.map((order) => (
-                    <div key={order.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:shadow-md transition-shadow">
-                      <div>
-                        <p className="font-medium text-sm text-black">
+                    <div key={order.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 border border-gray-200 rounded-lg hover:shadow-md transition-shadow gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-xs sm:text-sm text-black truncate">
                           {order.guest_email || `Order #${order.order_number}`}
                         </p>
                         <p className="text-xs text-gray-600">
                           {new Date(order.created_at).toLocaleDateString()}
                         </p>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant={order.status === "completed" ? "default" : "secondary"} className={order.status === "completed" ? "bg-green-400 text-black" : ""}>
+                      <div className="flex items-center justify-between sm:justify-end gap-2">
+                        <Badge variant={order.status === "completed" ? "default" : "secondary"} className={`text-xs ${order.status === "completed" ? "bg-green-400 text-black" : ""}`}>
                           {order.status}
                         </Badge>
-                        <span className="font-medium text-black">₦{order.total_amount}</span>
+                        <span className="font-medium text-xs sm:text-sm text-black">₦{order.total_amount}</span>
                       </div>
                     </div>
                   ))}

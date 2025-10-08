@@ -49,10 +49,10 @@ export function Header({ cartItemsCount, onCartClick }: HeaderProps) {
           {/* Logo */}
           <div className="flex items-center space-x-2">
             {/* Logo placeholder - replace with your actual logo */}
-            <div className="w-8 h-8 bg-[#FFDC00] rounded flex items-center justify-center">
-              <span className="text-black font-bold text-sm">L</span>
+            <div className="w-6 h-6 sm:w-8 sm:h-8 bg-[#FFDC00] rounded flex items-center justify-center">
+              <span className="text-black font-bold text-xs sm:text-sm">L</span>
             </div>
-            <span className="text-xl font-bold text-[#FFDC00]">Favorite Things</span>
+            <span className="text-lg sm:text-xl font-bold text-[#FFDC00] truncate">Favorite Things</span>
           </div>
 
           {/* Desktop Navigation */}
@@ -69,28 +69,29 @@ export function Header({ cartItemsCount, onCartClick }: HeaderProps) {
           </nav>
 
           {/* Account, Cart and Mobile Menu */}
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2 sm:space-x-4">
             {/* Account/Login Button */}
             {loading ? (
-              <div className="w-20 h-8 bg-gray-700 animate-pulse rounded"></div>
+              <div className="w-16 sm:w-20 h-8 bg-gray-700 animate-pulse rounded"></div>
             ) : user ? (
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-1 sm:space-x-2">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handleAccountClick}
-                  className="flex items-center gap-2 border-[#FFDC00] hover:bg-[#FFDC00] text-[#FFDC00] hover:text-black font-medium"
+                  className="flex items-center gap-1 sm:gap-2 border-[#FFDC00] hover:bg-[#FFDC00] text-[#FFDC00] hover:text-black font-medium px-2 sm:px-3"
                 >
                   <User className="h-4 w-4" />
-                  <span>Account</span>
+                  <span className="hidden sm:inline">Account</span>
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handleSignOut}
-                  className="flex items-center gap-2 border-[#FFDC00] hover:bg-[#FFDC00] text-[#FFDC00] hover:text-black font-medium"
+                  className="flex items-center gap-1 sm:gap-2 border-[#FFDC00] hover:bg-[#FFDC00] text-[#FFDC00] hover:text-black font-medium px-2 sm:px-3"
                 >
                   <LogOut className="h-4 w-4" />
+                  <span className="hidden sm:inline">Sign Out</span>
                 </Button>
               </div>
             ) : (
@@ -98,10 +99,10 @@ export function Header({ cartItemsCount, onCartClick }: HeaderProps) {
                 variant="outline"
                 size="sm"
                 onClick={handleAccountClick}
-                className="flex items-center gap-2 border-[#FFDC00] hover:bg-[#FFDC00] text-[#FFDC00] hover:text-black font-medium"
+                className="flex items-center gap-1 sm:gap-2 border-[#FFDC00] hover:bg-[#FFDC00] text-[#FFDC00] hover:text-black font-medium px-2 sm:px-3"
               >
                 <User className="h-4 w-4" />
-                <span>Login</span>
+                <span className="hidden sm:inline">Login</span>
               </Button>
             )}
 
@@ -110,14 +111,14 @@ export function Header({ cartItemsCount, onCartClick }: HeaderProps) {
               variant="outline"
               size="sm"
               onClick={onCartClick}
-              className="relative border-[#FFDC00] hover:bg-[#FFDC00] text-[#FFDC00] hover:text-black"
+              className="relative border-[#FFDC00] hover:bg-[#FFDC00] text-[#FFDC00] hover:text-black px-2 sm:px-3"
             >
               <ShoppingCart className="h-4 w-4" />
               {cartItemsCount > 0 && (
                 <Badge
-                  className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 text-xs bg-[#FFDC00] text-black hover:bg-yellow-300"
+                  className="absolute -top-2 -right-2 h-4 w-4 sm:h-5 sm:w-5 rounded-full p-0 text-xs bg-[#FFDC00] text-black hover:bg-yellow-300 flex items-center justify-center"
                 >
-                  {cartItemsCount}
+                  {cartItemsCount > 99 ? '99+' : cartItemsCount}
                 </Badge>
               )}
             </Button>

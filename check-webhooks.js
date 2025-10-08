@@ -1,9 +1,15 @@
 const { createClient } = require('@supabase/supabase-js');
+require('dotenv').config({ path: '.env.local' });
 
-const supabaseUrl = 'https://ysubkmcyeqosjybogvyq.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlzdWJrbWN5ZXFvc2p5Ym9ndnlxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgzMjk5NDYsImV4cCI6MjA3MzkwNTk0Nn0._KUlofWqNHlr3LEMFx6UXHCOhQNh0CKze1eNls9eM1U';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+if (!supabaseUrl || !supabaseServiceKey) {
+  console.error('❌ Missing environment variables. Please check .env.local file.');
+  process.exit(1);
+}
+
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 async function checkWebhooks() {
   console.log('🔍 Checking webhook configuration...');
@@ -26,7 +32,7 @@ async function checkWebhooks() {
     } else {
       console.log(`✅ Found ${webhooks.length} webhook(s)`);
       webhooks.forEach(webhook => {
-        console.log(`  - Event: ${webhook.event}, URL: ${webhook.url}, Active: ${webhook.is_active}`);
+        console.log(`  - Event: ${webhook.event_type}, URL: ${webhook.url}, Active: ${webhook.is_active}`);
       });
     }
   } catch (err) {

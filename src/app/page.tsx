@@ -217,14 +217,14 @@ function FixedIdentityPanel({ onAccountClick, user }: { onAccountClick: () => vo
 
 function WelcomeFrame({ brands, loading }: { brands: Brand[]; loading?: boolean }) {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-white relative py-20">
-      <div className="container mx-auto px-6 text-center z-10">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-white relative py-12 sm:py-20">
+      <div className="container mx-auto px-4 sm:px-6 text-center z-10">
         <motion.div
           initial={{ opacity: 0, y: 50 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1, ease: "easeOut" }}
         >
-          <h1 className="text-6xl md:text-8xl font-bold text-black mb-6 leading-tight">
+          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-8xl font-bold text-black mb-4 sm:mb-6 leading-tight">
             Discover Nigeria's
             <br />
             <span className="text-yellow-500">Favorite Fashion</span>
@@ -236,7 +236,7 @@ function WelcomeFrame({ brands, loading }: { brands: Brand[]; loading?: boolean 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.5, duration: 0.8 }}
-            className="text-xl text-gray-600 mb-12 max-w-2xl mx-auto leading-relaxed"
+            className="text-lg sm:text-xl text-gray-600 mb-8 sm:mb-12 max-w-2xl mx-auto leading-relaxed px-4"
           >
             Three distinct brands. One unified vision of contemporary Nigerian fashion.
           </motion.p>
@@ -245,7 +245,7 @@ function WelcomeFrame({ brands, loading }: { brands: Brand[]; loading?: boolean 
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.8, duration: 0.8 }}
-            className="grid md:grid-cols-3 gap-8 mb-12 max-w-4xl mx-auto"
+            className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 lg:gap-8 mb-8 sm:mb-12 max-w-5xl mx-auto px-4"
           >
             {loading ? (
               // Show loading skeletons instead of empty cards
@@ -292,7 +292,7 @@ function WelcomeFrame({ brands, loading }: { brands: Brand[]; loading?: boolean 
                   <img
                     src={brand.image_url}
                     alt={`${brand.name} Preview`}
-                    className="w-full h-64 object-cover rounded-lg shadow-lg group-hover:shadow-2xl transition-all duration-500"
+                    className="w-full h-48 sm:h-56 md:h-64 object-cover rounded-lg shadow-lg group-hover:shadow-2xl transition-all duration-500"
                   />
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 rounded-lg transition-all duration-300 flex items-center justify-center">
                     <span className="text-white font-semibold text-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300">
@@ -312,10 +312,11 @@ function WelcomeFrame({ brands, loading }: { brands: Brand[]; loading?: boolean 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 1.2, duration: 0.8 }}
+            className="px-4"
           >
             <Button
               size="lg"
-              className="bg-black text-white hover:bg-yellow-400 hover:text-black transition-all duration-300 px-8 py-4 text-lg rounded-full"
+              className="bg-black text-white hover:bg-yellow-400 hover:text-black transition-all duration-300 px-6 sm:px-8 py-3 sm:py-4 text-base sm:text-lg rounded-full"
               onClick={() => {
                 const element = document.getElementById('kiowa')
                 if (element) {
@@ -324,7 +325,7 @@ function WelcomeFrame({ brands, loading }: { brands: Brand[]; loading?: boolean 
               }}
             >
               Explore Our Brands
-              <ArrowRight className="w-5 h-5 ml-2" />
+              <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 ml-2" />
             </Button>
           </motion.div>
         </motion.div>
@@ -387,31 +388,31 @@ function KiowaFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
   const displayProducts = featuredProducts.length > 0 ? featuredProducts : fallbackProducts
 
   return (
-    <div className="min-h-screen flex items-center bg-gradient-to-br from-amber-50 to-orange-50 relative py-20">
-      <div className="container mx-auto px-6">
-        <div className="grid lg:grid-cols-2 gap-12 items-center">
+    <div className="min-h-screen flex items-center bg-gradient-to-br from-amber-50 to-orange-50 relative py-12 sm:py-20">
+      <div className="container mx-auto px-4 sm:px-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
           <motion.div initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 1 }}>
-            <Badge className="bg-yellow-400 text-black mb-6 px-4 py-2 text-lg">
+            <Badge className="bg-yellow-400 text-black mb-4 sm:mb-6 px-3 sm:px-4 py-1 sm:py-2 text-base sm:text-lg">
               {kiowaData?.name || 'Kiowa'}
             </Badge>
-            <h2 className="text-5xl md:text-6xl font-bold text-black mb-6 leading-tight">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-black mb-4 sm:mb-6 leading-tight">
               Bold &
               <br />
               <span className="italic font-serif">Beautiful</span>
             </h2>
-            <blockquote className="text-2xl italic text-gray-700 mb-6 font-serif">
+            <blockquote className="text-lg sm:text-xl lg:text-2xl italic text-gray-700 mb-4 sm:mb-6 font-serif">
               "Confidence is the best accessory."
             </blockquote>
-            <p className="text-xl text-gray-700 mb-8 leading-relaxed max-w-lg">
+            <p className="text-base sm:text-lg lg:text-xl text-gray-700 mb-6 sm:mb-8 leading-relaxed max-w-lg">
               {kiowaData?.description || 'For the woman who commands attention through effortless confidence and modern sophistication.'}
             </p>
             <Link href={`/brands/${kiowaData?.name.toLowerCase().replace(/\s+/g, '-') || 'kiowa'}`}>
               <Button
                 size="lg"
-                className="bg-yellow-400 text-black hover:bg-black hover:text-white transition-all duration-300 px-8 py-4 rounded-full"
+                className="bg-yellow-400 text-black hover:bg-black hover:text-white transition-all duration-300 px-6 sm:px-8 py-3 sm:py-4 rounded-full text-base sm:text-lg"
               >
                 View Collection
-                <ArrowRight className="w-5 h-5 ml-2" />
+                <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 ml-2" />
               </Button>
             </Link>
           </motion.div>
@@ -426,10 +427,10 @@ function KiowaFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
               <img
                 src={kiowaData.image_url}
                 alt={`${kiowaData.name} Hero`}
-                className="w-full h-96 lg:h-[500px] object-cover rounded-2xl shadow-2xl"
+                className="w-full h-64 sm:h-80 lg:h-96 xl:h-[500px] object-cover rounded-2xl shadow-2xl"
               />
             ) : (
-              <div className="w-full h-96 lg:h-[500px] bg-gray-200 rounded-2xl shadow-2xl animate-pulse"></div>
+              <div className="w-full h-64 sm:h-80 lg:h-96 xl:h-[500px] bg-gray-200 rounded-2xl shadow-2xl animate-pulse"></div>
             )}
           </motion.div>
         </div>
@@ -439,33 +440,32 @@ function KiowaFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
           initial={{ opacity: 0, y: 50 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.5 }}
-          className="mt-16"
+          className="mt-12 sm:mt-16"
         >
-          <h3 className="text-2xl font-bold text-black mb-8 text-center">Featured Pieces</h3>
+          <h3 className="text-xl sm:text-2xl font-bold text-black mb-6 sm:mb-8 text-center">Featured Pieces</h3>
           {loading ? (
             <div className="flex justify-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-400"></div>
             </div>
           ) : featuredProducts.length > 0 ? (
-            <div className="flex space-x-6 overflow-x-auto pb-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
               {featuredProducts.map((product, index) => (
                 <motion.div
                   key={product.id}
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6, delay: 0.7 + index * 0.1 }}
-                  className="flex-shrink-0"
+                  className="group"
                 >
                   <div 
-                    className="w-48 group cursor-pointer transition-all duration-300 hover:scale-105"
+                    className="cursor-pointer transition-all duration-300 hover:scale-105"
                     onClick={() => onProductClick(product)}
                   >
                     <div className="relative overflow-hidden rounded-lg">
                       <img
                         src={product.thumbnail_url}
                         alt={product.name}
-                        className="w-full aspect-[9/16] object-cover transition-transform duration-500"
-                        style={{ aspectRatio: '9/16' }}
+                        className="w-full aspect-[3/4] sm:aspect-[9/16] object-cover transition-transform duration-500"
                       />
                       {product.has_active_discount && (
                         <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-md text-xs font-bold shadow-lg">
@@ -473,19 +473,19 @@ function KiowaFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
                         </div>
                       )}
                     </div>
-                    <div className="mt-4">
-                      <h3 className="font-semibold text-black mb-2 text-sm">{product.name}</h3>
+                    <div className="mt-3 sm:mt-4">
+                      <h3 className="font-semibold text-black mb-2 text-sm sm:text-base line-clamp-2">{product.name}</h3>
                       <div className="space-y-1">
                         {product.has_active_discount ? (
                           <>
-                            <p className="text-yellow-600 font-bold text-lg">₦{product.discounted_price?.toLocaleString()}</p>
-                            <p className="text-gray-500 line-through text-sm">₦{product.price.toLocaleString()}</p>
+                            <p className="text-yellow-600 font-bold text-base sm:text-lg">₦{product.discounted_price?.toLocaleString()}</p>
+                            <p className="text-gray-500 line-through text-xs sm:text-sm">₦{product.price.toLocaleString()}</p>
                             <p className="text-green-600 text-xs font-medium">
                               You save ₦{((product.price - (product.discounted_price || 0))).toLocaleString()}
                             </p>
                           </>
                         ) : (
-                          <p className="text-yellow-600 font-bold text-lg">₦{product.price.toLocaleString()}</p>
+                          <p className="text-yellow-600 font-bold text-base sm:text-lg">₦{product.price.toLocaleString()}</p>
                         )}
                       </div>
                     </div>
@@ -494,17 +494,17 @@ function KiowaFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
               ))}
             </div>
           ) : (
-            <div className="flex space-x-6 overflow-x-auto pb-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
               {fallbackProducts.map((product, index) => (
                 <motion.div
                   key={product.name}
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6, delay: 0.7 + index * 0.1 }}
-                  className="flex-shrink-0"
+                  className="group"
                 >
                   <div 
-                    className="w-48 group cursor-pointer transition-all duration-300 hover:scale-105"
+                    className="cursor-pointer transition-all duration-300 hover:scale-105"
                     onClick={() => {
                       onProductClick({
                         id: product.name.toLowerCase().replace(/\s+/g, '-'),
@@ -521,13 +521,12 @@ function KiowaFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
                       <img
                         src={product.image}
                         alt={product.name}
-                        className="w-full aspect-[9/16] object-cover transition-transform duration-500"
-                        style={{ aspectRatio: '9/16' }}
+                        className="w-full aspect-[3/4] sm:aspect-[9/16] object-cover transition-transform duration-500"
                       />
                     </div>
-                    <div className="mt-4">
-                      <h3 className="font-semibold text-black mb-2 text-sm">{product.name}</h3>
-                      <p className="text-yellow-600 font-bold text-lg">{product.price}</p>
+                    <div className="mt-3 sm:mt-4">
+                      <h3 className="font-semibold text-black mb-2 text-sm sm:text-base line-clamp-2">{product.name}</h3>
+                      <p className="text-yellow-600 font-bold text-base sm:text-lg">{product.price}</p>
                     </div>
                   </div>
                 </motion.div>
@@ -648,17 +647,16 @@ function OmegeFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-400"></div>
             </div>
           ) : featuredProducts.length > 0 ? (
-            <div className="flex space-x-6 overflow-x-auto pb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {featuredProducts.map((product, index) => (
                 <motion.div
                   key={product.id}
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6, delay: 0.7 + index * 0.1 }}
-                  className="flex-shrink-0"
                 >
                   <div 
-                    className="w-48 group cursor-pointer transition-all duration-300 hover:scale-105"
+                    className="group cursor-pointer transition-all duration-300 hover:scale-105"
                     onClick={() => onProductClick(product)}
                   >
                     <div className="relative overflow-hidden rounded-lg">
@@ -695,17 +693,16 @@ function OmegeFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
               ))}
             </div>
           ) : (
-            <div className="flex space-x-6 overflow-x-auto pb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {fallbackProducts.map((product, index) => (
                 <motion.div
                   key={product.name}
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6, delay: 0.7 + index * 0.1 }}
-                  className="flex-shrink-0"
                 >
                   <div 
-                    className="w-48 group cursor-pointer transition-all duration-300 hover:scale-105"
+                    className="group cursor-pointer transition-all duration-300 hover:scale-105"
                     onClick={() => {
                       onProductClick({
                         id: product.name.toLowerCase().replace(/\s+/g, '-'),
@@ -842,17 +839,16 @@ function MiniMeFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-400"></div>
             </div>
           ) : featuredProducts.length > 0 ? (
-            <div className="flex space-x-6 overflow-x-auto pb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {featuredProducts.map((product, index) => (
                 <motion.div
                   key={product.id}
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6, delay: 0.7 + index * 0.1 }}
-                  className="flex-shrink-0"
                 >
                   <div 
-                    className="w-48 group cursor-pointer transition-all duration-300 hover:scale-105"
+                    className="group cursor-pointer transition-all duration-300 hover:scale-105"
                     onClick={() => onProductClick(product)}
                   >
                     <div className="relative overflow-hidden rounded-lg">
@@ -889,17 +885,16 @@ function MiniMeFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
               ))}
             </div>
           ) : (
-            <div className="flex space-x-6 overflow-x-auto pb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {fallbackProducts.map((product, index) => (
                 <motion.div
                   key={product.name}
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6, delay: 0.7 + index * 0.1 }}
-                  className="flex-shrink-0"
                 >
                   <div 
-                    className="w-48 group cursor-pointer transition-all duration-300 hover:scale-105"
+                    className="group cursor-pointer transition-all duration-300 hover:scale-105"
                     onClick={() => {
                       onProductClick({
                         id: product.name.toLowerCase().replace(/\s+/g, '-'),
@@ -1213,7 +1208,7 @@ export default function HomePage() {
       <FixedIdentityPanel onAccountClick={handleAccountClick} user={user} />
 
       {/* Main Content Area */}
-      <div className="lg:ml-20 relative">
+      <div className="lg:ml-20 relative pt-16 lg:pt-0">
         {/* Welcome Section */}
         <section id="welcome" className="scroll-mt-20">
           <WelcomeFrame brands={brands} loading={brandsLoading} />

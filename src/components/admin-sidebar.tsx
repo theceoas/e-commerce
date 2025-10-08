@@ -25,6 +25,8 @@ interface AdminSidebarProps {
   newOrdersCount?: number
   isCollapsed?: boolean
   setIsCollapsed?: (collapsed: boolean) => void
+  isMobile?: boolean
+  onMobileClose?: () => void
 }
 
 export default function AdminSidebar({ 
@@ -32,7 +34,9 @@ export default function AdminSidebar({
   onSectionChange,
   newOrdersCount = 3,
   isCollapsed = false,
-  setIsCollapsed
+  setIsCollapsed,
+  isMobile = false,
+  onMobileClose
 }: AdminSidebarProps) {
   const [internalCollapsed, setInternalCollapsed] = useState(false)
   
@@ -102,24 +106,28 @@ export default function AdminSidebar({
     if (onSectionChange) {
       onSectionChange(sectionId)
     }
+    // Close mobile menu when navigation item is clicked
+    if (isMobile && onMobileClose) {
+      onMobileClose()
+    }
   }
 
   return (
     <motion.div
       initial={{ x: -280 }}
-      animate={{ x: 0, width: collapsed ? 80 : 280 }}
+      animate={{ x: 0, width: isMobile ? 280 : (collapsed ? 80 : 280) }}
       transition={{ duration: 0.3 }}
-      className="fixed left-0 top-0 h-full bg-white/95 backdrop-blur-sm border-r border-gray-200 shadow-lg z-40 flex-shrink-0"
+      className="h-full bg-white/95 backdrop-blur-sm border-r border-gray-200 shadow-lg flex-shrink-0"
     >
       <div className="flex flex-col h-full">
         {/* Header */}
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center justify-between">
-            {!collapsed && (
+            {(!collapsed || isMobile) && (
               <div className="flex items-center space-x-3">
                 {/* Logo placeholder - replace with your actual logo */}
                 <div className="w-8 h-8 bg-[#FFDC00] rounded flex items-center justify-center flex-shrink-0">
-                  <span className="text-black font-bold text-sm">L</span>
+                  <span className="text-black font-bold text-sm">FT</span>
                 </div>
                 <div>
                   <h2 className="text-xl font-bold text-black">Admin Panel</h2>
@@ -127,23 +135,25 @@ export default function AdminSidebar({
                 </div>
               </div>
             )}
-            {collapsed && (
+            {collapsed && !isMobile && (
               <div className="w-8 h-8 bg-[#FFDC00] rounded flex items-center justify-center">
-                <span className="text-black font-bold text-sm">L</span>
+                <span className="text-black font-bold text-sm">FT</span>
               </div>
             )}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => toggleCollapsed(!collapsed)}
-              className="hover:bg-gray-100"
-            >
-              {collapsed ? (
-                <ChevronRight className="w-4 h-4" />
-              ) : (
-                <ChevronLeft className="w-4 h-4" />
-              )}
-            </Button>
+            {!isMobile && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => toggleCollapsed(!collapsed)}
+                className="hover:bg-gray-100"
+              >
+                {collapsed ? (
+                  <ChevronRight className="w-4 h-4" />
+                ) : (
+                  <ChevronLeft className="w-4 h-4" />
+                )}
+              </Button>
+            )}
           </div>
         </div>
 
@@ -165,7 +175,7 @@ export default function AdminSidebar({
                     isActive 
                       ? "bg-[#FFDC00] hover:bg-[#FFDC00]/90 text-black" 
                       : "hover:bg-gray-100 text-gray-700"
-                  } ${collapsed ? "px-3" : ""}`}
+                  } ${collapsed && !isMobile ? "px-3" : ""}`}
                   onClick={() => handleSectionClick(item.id)}
                 >
                   <div className="flex items-center gap-3 w-full">
@@ -179,7 +189,7 @@ export default function AdminSidebar({
                         </Badge>
                       )}
                     </div>
-                    {!collapsed && (
+                    {(!collapsed || isMobile) && (
                       <div className="flex-1 text-left">
                         <div className="font-medium">{item.label}</div>
                         <div className="text-xs opacity-70">{item.description}</div>
@@ -195,7 +205,7 @@ export default function AdminSidebar({
         {/* Notifications Section */}
         <div className="p-4 border-t border-gray-200">
           <div className="flex items-center justify-between mb-3">
-            {!collapsed && (
+            {(!collapsed || isMobile) && (
               <h3 className="text-sm font-medium text-gray-700">Notifications</h3>
             )}
             <div className="relative">
@@ -208,7 +218,7 @@ export default function AdminSidebar({
             </div>
           </div>
           
-          {!collapsed && (
+          {(!collapsed || isMobile) && (
             <div className="space-y-2">
               <div className="text-xs text-gray-600">
                 {newOrdersCount} new orders

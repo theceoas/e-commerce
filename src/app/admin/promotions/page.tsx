@@ -386,16 +386,16 @@ export default function PromotionsManagement() {
   }
 
   return (
-    <div className="container mx-auto px-6 py-8">
-      <div className="flex justify-between items-center mb-8">
+    <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-8">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 sm:mb-8 gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Promotions Management</h1>
-          <p className="text-gray-600 mt-2">Create and manage discount codes for your store</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Promotions Management</h1>
+          <p className="text-gray-600 mt-2 text-sm sm:text-base">Create and manage discount codes for your store</p>
         </div>
         
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button onClick={resetForm} className="bg-black text-white hover:bg-gray-800">
+            <Button onClick={resetForm} className="bg-black text-white hover:bg-gray-800 w-full sm:w-auto">
               <Plus className="w-4 h-4 mr-2" />
               Create Promotion
             </Button>
@@ -664,12 +664,12 @@ export default function PromotionsManagement() {
           placeholder="Search promotions..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="max-w-md"
+          className="w-full sm:max-w-md"
         />
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">Total Promotions</CardTitle>
@@ -733,34 +733,34 @@ export default function PromotionsManagement() {
         ) : (
           filteredPromotions.map((promotion) => (
             <Card key={promotion.id} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
+              <CardContent className="p-4 sm:p-6">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
                       <h3 className="text-lg font-semibold">{promotion.name}</h3>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <Badge
                           variant="outline"
-                          className="font-mono cursor-pointer hover:bg-gray-100"
+                          className="font-mono cursor-pointer hover:bg-gray-100 text-xs"
                           onClick={() => copyCode(promotion.code)}
                         >
                           {promotion.code}
                           <Copy className="w-3 h-3 ml-1" />
                         </Badge>
-                        <Badge variant={promotion.is_active ? "default" : "secondary"}>
+                        <Badge variant={promotion.is_active ? "default" : "secondary"} className="text-xs">
                           {promotion.is_active ? "Active" : "Inactive"}
                         </Badge>
                         {promotion.expires_at && new Date(promotion.expires_at) < new Date() && (
-                          <Badge variant="destructive">Expired</Badge>
+                          <Badge variant="destructive" className="text-xs">Expired</Badge>
                         )}
                       </div>
                     </div>
                     
                     {promotion.description && (
-                      <p className="text-gray-600 mb-3">{promotion.description}</p>
+                      <p className="text-gray-600 mb-3 text-sm">{promotion.description}</p>
                     )}
                     
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 text-sm">
                       <div>
                         <span className="font-medium">Discount:</span>
                         <div>
@@ -800,37 +800,43 @@ export default function PromotionsManagement() {
                     </div>
                   </div>
                   
-                  <div className="flex items-center gap-2 ml-4">
+                  <div className="flex items-center gap-2 sm:ml-4">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => handleWebhookRequest(promotion)}
-                      className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                      className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 flex-1 sm:flex-none"
                       title="Send webhook for this promotion"
                     >
                       <Send className="w-4 h-4" />
+                      <span className="sm:hidden ml-1">Webhook</span>
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => toggleActive(promotion)}
+                      className="flex-1 sm:flex-none"
                     >
                       {promotion.is_active ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      <span className="sm:hidden ml-1">{promotion.is_active ? 'Hide' : 'Show'}</span>
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => handleEdit(promotion)}
+                      className="flex-1 sm:flex-none"
                     >
                       <Edit className="w-4 h-4" />
+                      <span className="sm:hidden ml-1">Edit</span>
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => handleDelete(promotion.id)}
-                      className="text-red-600 hover:text-red-700"
+                      className="text-red-600 hover:text-red-700 flex-1 sm:flex-none"
                     >
                       <Trash2 className="w-4 h-4" />
+                      <span className="sm:hidden ml-1">Delete</span>
                     </Button>
                   </div>
                 </div>

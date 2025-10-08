@@ -58,9 +58,9 @@ export function ProductGrid({
   }, [products, searchTerm, selectedCategory, sortBy])
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Search and Filters */}
-      <div className="space-y-4">
+      <div className="space-y-3 sm:space-y-4">
         {/* Search */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -68,7 +68,7 @@ export function ProductGrid({
             placeholder="Search products..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
+            className="pl-10 text-sm"
           />
         </div>
 
@@ -79,6 +79,7 @@ export function ProductGrid({
             variant={selectedCategory === null ? "default" : "outline"}
             size="sm"
             onClick={() => setSelectedCategory(null)}
+            className="text-xs sm:text-sm"
           >
             All
           </Button>
@@ -88,6 +89,7 @@ export function ProductGrid({
               variant={selectedCategory === category ? "default" : "outline"}
               size="sm"
               onClick={() => setSelectedCategory(category)}
+              className="text-xs sm:text-sm"
             >
               {category}
             </Button>
@@ -95,42 +97,47 @@ export function ProductGrid({
         </div>
 
         {/* Sort */}
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Sort by:</span>
-          <Button
-            variant={sortBy === 'newest' ? "default" : "outline"}
-            size="sm"
-            onClick={() => setSortBy('newest')}
-          >
-            Newest
-          </Button>
-          <Button
-            variant={sortBy === 'name' ? "default" : "outline"}
-            size="sm"
-            onClick={() => setSortBy('name')}
-          >
-            Name
-          </Button>
-          <Button
-            variant={sortBy === 'price' ? "default" : "outline"}
-            size="sm"
-            onClick={() => setSortBy('price')}
-          >
-            Price
-          </Button>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+          <span className="text-xs sm:text-sm text-muted-foreground">Sort by:</span>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant={sortBy === 'newest' ? "default" : "outline"}
+              size="sm"
+              onClick={() => setSortBy('newest')}
+              className="text-xs sm:text-sm"
+            >
+              Newest
+            </Button>
+            <Button
+              variant={sortBy === 'name' ? "default" : "outline"}
+              size="sm"
+              onClick={() => setSortBy('name')}
+              className="text-xs sm:text-sm"
+            >
+              Name
+            </Button>
+            <Button
+              variant={sortBy === 'price' ? "default" : "outline"}
+              size="sm"
+              onClick={() => setSortBy('price')}
+              className="text-xs sm:text-sm"
+            >
+              Price
+            </Button>
+          </div>
         </div>
       </div>
 
       {/* Results count */}
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
+        <p className="text-xs sm:text-sm text-muted-foreground">
           {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''} found
         </p>
       </div>
 
       {/* Product Grid */}
       {filteredProducts.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
           {filteredProducts.map(product => (
             <ProductCard
               key={product.id}
@@ -142,8 +149,8 @@ export function ProductGrid({
           ))}
         </div>
       ) : (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">No products found matching your criteria.</p>
+        <div className="text-center py-8 sm:py-12">
+          <p className="text-muted-foreground text-sm">No products found matching your criteria.</p>
         </div>
       )}
     </div>

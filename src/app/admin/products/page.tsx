@@ -519,18 +519,19 @@ export default function ProductsManagement() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="w-full overflow-auto">
-        <div className="p-8">
-          <div className="flex justify-between items-center mb-6">
+        <div className="p-4 sm:p-6 lg:p-8">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Products Management</h1>
-              <p className="text-gray-600 mt-2">Manage your product catalog</p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Products Management</h1>
+              <p className="text-sm sm:text-base text-gray-600 mt-2">Manage your product catalog</p>
             </div>
             
             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
               <DialogTrigger asChild>
-                <Button onClick={resetForm} className="bg-blue-600 hover:bg-blue-700 text-white">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Product
+                <Button onClick={resetForm} className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto text-sm">
+                  <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
+                  <span className="hidden sm:inline">Add Product</span>
+                  <span className="sm:hidden">Add</span>
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -780,14 +781,14 @@ export default function ProductsManagement() {
 
           {/* Search Bar */}
           <div className="mb-6">
-            <div className="relative max-w-md">
+            <div className="relative w-full sm:max-w-md">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <Input
                 type="text"
                 placeholder="Search products or brands..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="pl-10 pr-10 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
               />
               {searchQuery && (
                 <Button
@@ -840,142 +841,144 @@ export default function ProductsManagement() {
               </div>
             ) : (
               groupProductsByBrand().map((brandGroup) => (
-              <div key={brandGroup.brandId} className="space-y-4">
-                <div className="flex items-center space-x-3 pb-2 border-b border-gray-200">
-                  <h2 className="text-xl font-semibold text-gray-800">{brandGroup.brandName}</h2>
-                  <Badge variant="secondary" className="text-xs">
-                    {brandGroup.products.length} product{brandGroup.products.length !== 1 ? 's' : ''}
-                  </Badge>
-                </div>
-                
-                <div className="space-y-3">
-                  {brandGroup.products.map((product) => (
-                    <motion.div
-                      key={product.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 hover:shadow-md transition-shadow"
-                    >
-                      <div className="flex items-center space-x-3">
-                        <div className="w-12 h-16 bg-gray-100 rounded-md flex-shrink-0 overflow-hidden">
-                          {product.thumbnail_url ? (
-                            <img 
-                              src={product.thumbnail_url} 
-                              alt={product.name}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center">
-                              <ImageIcon className="w-4 h-4 text-gray-400" />
+                <div key={brandGroup.brandId} className="space-y-4">
+                  <div className="flex items-center space-x-3 pb-2 border-b border-gray-200">
+                    <h2 className="text-xl font-semibold text-gray-800">{brandGroup.brandName}</h2>
+                    <Badge variant="secondary" className="text-xs">
+                      {brandGroup.products.length} product{brandGroup.products.length !== 1 ? 's' : ''}
+                    </Badge>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    {brandGroup.products.map((product) => (
+                      <motion.div
+                        key={product.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 hover:shadow-md transition-shadow"
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-3">
+                          <div className="flex items-center space-x-3 flex-1 min-w-0">
+                            <div className="w-10 h-12 sm:w-12 sm:h-16 bg-gray-100 rounded-md flex-shrink-0 overflow-hidden">
+                              {product.thumbnail_url ? (
+                                <img 
+                                  src={product.thumbnail_url} 
+                                  alt={product.name}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <ImageIcon className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-medium text-gray-900 truncate text-sm">{product.name}</h3>
-                          <div className="flex items-center space-x-2 mt-1">
-                            {product.has_active_discount && product.discounted_price ? (
-                              <>
-                                <span className="font-semibold text-red-600 text-sm">₦{product.discounted_price.toLocaleString()}</span>
-                                <span className="text-xs text-gray-500 line-through">₦{product.price.toLocaleString()}</span>
-                                <Badge variant="destructive" className="text-xs">
-                                  {product.discount_percentage 
-                                    ? `${product.discount_percentage}% OFF`
-                                    : `₦${product.discount_amount?.toLocaleString()} OFF`
-                                  }
-                                </Badge>
-                              </>
-                            ) : (
-                              <span className="font-semibold text-blue-600 text-sm">₦{product.price.toLocaleString()}</span>
-                            )}
-                            {product.sizes && product.sizes.length > 0 && (
-                              <span className="text-xs text-gray-500">
-                                {product.sizes.length} size{product.sizes.length > 1 ? 's' : ''}
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center space-x-2 mt-1">
-                            <div className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium ${getStockStatus(product).bgColor} ${getStockStatus(product).color}`}>
-                              <BarChart3 className="w-3 h-3" />
-                              <span>{calculateTotalStock(product)} in stock</span>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-medium text-gray-900 truncate text-sm">{product.name}</h3>
+                              <div className="flex flex-wrap items-center gap-2 mt-1">
+                                {product.has_active_discount && product.discounted_price ? (
+                                  <>
+                                    <span className="font-semibold text-red-600 text-xs sm:text-sm">₦{product.discounted_price.toLocaleString()}</span>
+                                    <span className="text-xs text-gray-500 line-through">₦{product.price.toLocaleString()}</span>
+                                    <Badge variant="destructive" className="text-xs">
+                                      {product.discount_percentage 
+                                        ? `${product.discount_percentage}% OFF`
+                                        : `₦${product.discount_amount?.toLocaleString()} OFF`
+                                      }
+                                    </Badge>
+                                  </>
+                                ) : (
+                                  <span className="font-semibold text-blue-600 text-xs sm:text-sm">₦{product.price.toLocaleString()}</span>
+                                )}
+                                {product.sizes && product.sizes.length > 0 && (
+                                  <span className="text-xs text-gray-500">
+                                    {product.sizes.length} size{product.sizes.length > 1 ? 's' : ''}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center space-x-2 mt-1">
+                                <div className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium ${getStockStatus(product).bgColor} ${getStockStatus(product).color}`}>
+                                  <BarChart3 className="w-3 h-3" />
+                                  <span>{calculateTotalStock(product)} in stock</span>
+                                </div>
+                                {isCriticalStock(product) && (
+                                  <div className="flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                                    <AlertTriangle className="w-3 h-3" />
+                                    <span>Critical Stock</span>
+                                  </div>
+                                )}
+                                {isLowStock(product) && (
+                                  <div className="flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
+                                    <AlertTriangle className="w-3 h-3" />
+                                    <span>Low Stock</span>
+                                  </div>
+                                )}
+                                {isOutOfStock(product) && (
+                                  <div className="flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                                    <TrendingDown className="w-3 h-3" />
+                                    <span>Out of Stock</span>
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                            {isCriticalStock(product) && (
-                              <div className="flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
-                                <AlertTriangle className="w-3 h-3" />
-                                <span>Critical Stock</span>
-                              </div>
-                            )}
-                            {isLowStock(product) && (
-                              <div className="flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
-                                <AlertTriangle className="w-3 h-3" />
-                                <span>Low Stock</span>
-                              </div>
-                            )}
-                            {isOutOfStock(product) && (
-                              <div className="flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
-                                <TrendingDown className="w-3 h-3" />
-                                <span>Out of Stock</span>
-                              </div>
-                            )}
+                            <div className="flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
+                              <Button
+                                 variant="ghost"
+                                 size="sm"
+                                 onClick={() => toggleFeatured(product.id, product.featured)}
+                                 className={`h-7 w-7 sm:h-8 sm:w-8 p-0 ${product.featured ? 'text-yellow-500 hover:text-yellow-600' : 'text-gray-400 hover:text-yellow-500'}`}
+                                 title={product.featured ? "Remove from featured" : "Mark as featured"}
+                               >
+                                 <Star className={`w-3 h-3 sm:w-4 sm:h-4 ${product.featured ? 'fill-current' : ''}`} />
+                               </Button>
+                              <Button
+                                 variant="ghost"
+                                 size="sm"
+                                 onClick={() => openInventoryDialog(product)}
+                                 className="h-7 w-7 sm:h-8 sm:w-8 p-0"
+                                 title="Adjust Inventory"
+                               >
+                                 <Settings className="w-3 h-3 sm:w-4 sm:h-4" />
+                               </Button>
+                              <Button
+                                 variant="ghost"
+                                 size="sm"
+                                 onClick={() => openEditDialog(product)}
+                                 className="h-7 w-7 sm:h-8 sm:w-8 p-0"
+                               >
+                                 <Edit className="w-3 h-3 sm:w-4 sm:h-4" />
+                               </Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button variant="ghost" size="sm" className="h-7 w-7 sm:h-8 sm:w-8 p-0">
+                                    <Trash2 className="w-3 h-3 sm:w-4 sm:h-4 text-red-500" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Delete Product</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Are you sure you want to delete "{product.name}"? This action cannot be undone.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => handleDeleteProduct(product.id)}
+                                      className="bg-red-600 hover:bg-red-700"
+                                    >
+                                      Delete
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </div>
                           </div>
                         </div>
-                        <div className="flex items-center space-x-1">
-                          <Button
-                             variant="ghost"
-                             size="sm"
-                             onClick={() => toggleFeatured(product.id, product.featured)}
-                             className={`h-8 w-8 p-0 ${product.featured ? 'text-yellow-500 hover:text-yellow-600' : 'text-gray-400 hover:text-yellow-500'}`}
-                             title={product.featured ? "Remove from featured" : "Mark as featured"}
-                           >
-                             <Star className={`w-4 h-4 ${product.featured ? 'fill-current' : ''}`} />
-                           </Button>
-                          <Button
-                             variant="ghost"
-                             size="sm"
-                             onClick={() => openInventoryDialog(product)}
-                             className="h-8 w-8 p-0"
-                             title="Adjust Inventory"
-                           >
-                             <Settings className="w-4 h-4" />
-                           </Button>
-                          <Button
-                             variant="ghost"
-                             size="sm"
-                             onClick={() => openEditDialog(product)}
-                             className="h-8 w-8 p-0"
-                           >
-                             <Edit className="w-4 h-4" />
-                           </Button>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                <Trash2 className="w-4 h-4 text-red-500" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Delete Product</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Are you sure you want to delete "{product.name}"? This action cannot be undone.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() => handleDeleteProduct(product.id)}
-                                  className="bg-red-600 hover:bg-red-700"
-                                >
-                                  Delete
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
-                      </div>
-                    </motion.div>
-                  ))}
+                      </motion.div>
+                    ))}
+                  </div>
                 </div>
-              </div>
               ))
             )}
           </div>
