@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense, lazy } from "react"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -20,7 +20,11 @@ import {
 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import Link from "next/link"
-import { ProductModal } from "@/components/product-modal"
+import Image from "next/image"
+
+// Lazy load the ProductModal component
+const ProductModal = lazy(() => import("@/components/product-modal").then(module => ({ default: module.ProductModal })))
+
 import { useAuth } from "@/contexts/AuthContext"
 
 interface Brand {
@@ -289,10 +293,13 @@ function WelcomeFrame({ brands, loading }: { brands: Brand[]; loading?: boolean 
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                 >
-                  <img
+                  <Image
                     src={brand.image_url}
                     alt={`${brand.name} Preview`}
+                    width={400}
+                    height={256}
                     className="w-full h-48 sm:h-56 md:h-64 object-cover rounded-lg shadow-lg group-hover:shadow-2xl transition-all duration-500"
+                    sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, 33vw"
                   />
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 rounded-lg transition-all duration-300 flex items-center justify-center">
                     <span className="text-white font-semibold text-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300">
@@ -424,10 +431,13 @@ function KiowaFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
             className="relative"
           >
             {kiowaData?.image_url ? (
-              <img
+              <Image
                 src={kiowaData.image_url}
                 alt={`${kiowaData.name} Hero`}
+                width={800}
+                height={500}
                 className="w-full h-64 sm:h-80 lg:h-96 xl:h-[500px] object-cover rounded-2xl shadow-2xl"
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 80vw, 800px"
               />
             ) : (
               <div className="w-full h-64 sm:h-80 lg:h-96 xl:h-[500px] bg-gray-200 rounded-2xl shadow-2xl animate-pulse"></div>
@@ -465,7 +475,7 @@ function KiowaFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
                       <img
                         src={product.thumbnail_url}
                         alt={product.name}
-                        className="w-full aspect-[3/4] sm:aspect-[9/16] object-cover transition-transform duration-500"
+                        className="w-full aspect-[9/16] object-cover transition-transform duration-500"
                       />
                       {product.has_active_discount && (
                         <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-md text-xs font-bold shadow-lg">
@@ -521,7 +531,7 @@ function KiowaFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
                       <img
                         src={product.image}
                         alt={product.name}
-                        className="w-full aspect-[3/4] sm:aspect-[9/16] object-cover transition-transform duration-500"
+                        className="w-full aspect-[9/16] object-cover transition-transform duration-500"
                       />
                     </div>
                     <div className="mt-3 sm:mt-4">
@@ -544,7 +554,7 @@ function OmegeFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
   const [loading, setLoading] = useState(true)
   
   const omegeData = brands.find(brand => 
-    brand.name.toLowerCase().includes('omegebyify') || 
+    brand.name.toLowerCase().includes('omogebyify') || 
     brand.name.toLowerCase().includes('omoge')
   )
 
@@ -586,10 +596,12 @@ function OmegeFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
     },
   ]
 
+  const displayProducts = featuredProducts.length > 0 ? featuredProducts : fallbackProducts
+
   return (
-    <div className="min-h-screen flex items-center bg-gradient-to-br from-red-50 to-pink-50 relative py-20">
-      <div className="container mx-auto px-6">
-        <div className="grid lg:grid-cols-2 gap-12 items-center">
+    <div className="min-h-screen flex items-center bg-gradient-to-br from-red-50 to-pink-50 relative py-12 sm:py-20">
+      <div className="container mx-auto px-4 sm:px-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
           <motion.div
             initial={{ opacity: 0, x: 50 }}
             animate={{ opacity: 1, x: 0 }}
@@ -597,38 +609,41 @@ function OmegeFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
             className="order-2 lg:order-1 relative"
           >
             {omegeData?.image_url ? (
-              <img
+              <Image
                 src={omegeData.image_url}
                 alt={`${omegeData.name} Hero`}
-                className="w-full h-96 lg:h-[500px] object-cover rounded-2xl shadow-2xl"
+                width={800}
+                height={500}
+                className="w-full h-64 sm:h-80 lg:h-96 xl:h-[500px] object-cover rounded-2xl shadow-2xl"
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 80vw, 800px"
               />
             ) : (
-              <div className="w-full h-96 lg:h-[500px] bg-gray-200 rounded-2xl shadow-2xl animate-pulse"></div>
+              <div className="w-full h-64 sm:h-80 lg:h-96 xl:h-[500px] bg-gray-200 rounded-2xl shadow-2xl animate-pulse"></div>
             )}
           </motion.div>
 
           <motion.div initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 1, delay: 0.2 }}>
-            <Badge className="bg-red-400 text-white mb-6 px-4 py-2 text-lg">
+            <Badge className="bg-red-400 text-white mb-4 sm:mb-6 px-3 sm:px-4 py-1 sm:py-2 text-base sm:text-lg">
               {omegeData?.name || 'OmogeByIfy'}
             </Badge>
-            <h2 className="text-5xl md:text-6xl font-bold text-black mb-6 leading-tight">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-black mb-4 sm:mb-6 leading-tight">
               Elegant &
               <br />
               <span className="italic font-serif">Timeless</span>
             </h2>
-            <blockquote className="text-2xl italic text-gray-700 mb-6 font-serif">
+            <blockquote className="text-lg sm:text-xl lg:text-2xl italic text-gray-700 mb-4 sm:mb-6 font-serif">
               "Grace never goes out of style."
             </blockquote>
-            <p className="text-xl text-gray-700 mb-8 leading-relaxed max-w-lg">
+            <p className="text-base sm:text-lg lg:text-xl text-gray-700 mb-6 sm:mb-8 leading-relaxed max-w-lg">
               {omegeData?.description || 'Timeless pieces that blend classic style with contemporary flair for the sophisticated woman.'}
             </p>
-            <Link href={`/brands/${omegeData?.name.toLowerCase().replace(/\s+/g, '-') || 'omegebyify'}`}>
+            <Link href={`/brands/${omegeData?.name.toLowerCase().replace(/\s+/g, '-') || 'omogebyify'}`}>
               <Button
                 size="lg"
-                className="bg-red-400 text-white hover:bg-black hover:text-white transition-all duration-300 px-8 py-4 rounded-full"
+                className="bg-red-400 text-white hover:bg-black hover:text-white transition-all duration-300 px-6 sm:px-8 py-3 sm:py-4 rounded-full text-base sm:text-lg"
               >
                 View Collection
-                <ArrowRight className="w-5 h-5 ml-2" />
+                <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 ml-2" />
               </Button>
             </Link>
           </motion.div>
@@ -639,31 +654,32 @@ function OmegeFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
           initial={{ opacity: 0, y: 50 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.5 }}
-          className="mt-16"
+          className="mt-12 sm:mt-16"
         >
-          <h3 className="text-2xl font-bold text-black mb-8 text-center">Featured Pieces</h3>
+          <h3 className="text-xl sm:text-2xl font-bold text-black mb-6 sm:mb-8 text-center">Featured Pieces</h3>
           {loading ? (
             <div className="flex justify-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-400"></div>
             </div>
           ) : featuredProducts.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
               {featuredProducts.map((product, index) => (
                 <motion.div
                   key={product.id}
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6, delay: 0.7 + index * 0.1 }}
+                  className="group"
                 >
                   <div 
-                    className="group cursor-pointer transition-all duration-300 hover:scale-105"
+                    className="cursor-pointer transition-all duration-300 hover:scale-105"
                     onClick={() => onProductClick(product)}
                   >
                     <div className="relative overflow-hidden rounded-lg">
                        <img
                          src={product.thumbnail_url}
                          alt={product.name}
-                         className="w-full aspect-[9/16] object-cover transition-transform duration-500"
+                         className="w-full aspect-[3/4] sm:aspect-[9/16] object-cover transition-transform duration-500"
                          style={{ aspectRatio: '9/16' }}
                        />
                        {product.has_active_discount && (
@@ -693,16 +709,17 @@ function OmegeFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
               {fallbackProducts.map((product, index) => (
                 <motion.div
                   key={product.name}
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6, delay: 0.7 + index * 0.1 }}
+                  className="group"
                 >
                   <div 
-                    className="group cursor-pointer transition-all duration-300 hover:scale-105"
+                    className="cursor-pointer transition-all duration-300 hover:scale-105"
                     onClick={() => {
                       onProductClick({
                         id: product.name.toLowerCase().replace(/\s+/g, '-'),
@@ -719,7 +736,7 @@ function OmegeFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
                        <img
                          src={product.image}
                          alt={product.name}
-                         className="w-full aspect-[9/16] object-cover transition-transform duration-500"
+                         className="w-full aspect-[3/4] sm:aspect-[9/16] object-cover transition-transform duration-500"
                          style={{ aspectRatio: '9/16' }}
                        />
                      </div>
@@ -742,7 +759,9 @@ function MiniMeFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   
-  const miniMeData = brands.find(brand => brand.name.toLowerCase().includes('minime'))
+  const miniMeData = brands.find(brand => 
+    brand.name.toLowerCase().includes('minime')
+  )
 
   useEffect(() => {
     const fetchFeaturedProducts = async () => {
@@ -773,37 +792,39 @@ function MiniMeFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
 
   // Fallback hardcoded products
   const fallbackProducts = [
-    { name: "Rainbow Dress", price: "₦25,000", image: "https://images.unsplash.com/photo-1503944583220-79d8926ad5e2?w=300&h=400&fit=crop&crop=center" },
-    { name: "Denim Overalls", price: "₦22,000", image: "https://images.unsplash.com/photo-1519238263530-99bdd11df2ea?w=300&h=400&fit=crop&crop=center" },
-    { name: "Matching Set", price: "₦28,000", image: "https://images.unsplash.com/photo-1503944583220-79d8926ad5e2?w=300&h=400&fit=crop&crop=center" },
+    { name: "Kids Dress", price: "₦25,000", image: "https://images.unsplash.com/photo-1518831959646-742c3a14ebf7?w=300&h=400&fit=crop&crop=center" },
+    { name: "Baby Romper", price: "₦18,000", image: "https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?w=300&h=400&fit=crop&crop=center" },
+    { name: "Toddler Set", price: "₦32,000", image: "https://images.unsplash.com/photo-1503944583220-79d8926ad5e2?w=300&h=400&fit=crop&crop=center" },
   ]
 
+  const displayProducts = featuredProducts.length > 0 ? featuredProducts : fallbackProducts
+
   return (
-    <div className="min-h-screen flex items-center bg-gradient-to-br from-green-50 to-blue-50 relative py-20">
-      <div className="container mx-auto px-6">
-        <div className="grid lg:grid-cols-2 gap-12 items-center">
+    <div className="min-h-screen flex items-center bg-gradient-to-br from-yellow-50 to-orange-50 relative py-12 sm:py-20">
+      <div className="container mx-auto px-4 sm:px-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
           <motion.div initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 1 }}>
-            <Badge className="bg-green-400 text-black mb-6 px-4 py-2 text-lg">
+            <Badge className="bg-yellow-400 text-black mb-4 sm:mb-6 px-3 sm:px-4 py-1 sm:py-2 text-base sm:text-lg">
               {miniMeData?.name || 'MiniMe'}
             </Badge>
-            <h2 className="text-5xl md:text-6xl font-bold text-black mb-6 leading-tight">
-              Playful &
+            <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-black mb-4 sm:mb-6 leading-tight">
+              Little Ones,
               <br />
-              <span className="italic font-serif">Precious</span>
+              <span className="italic font-serif">Big Style</span>
             </h2>
-            <blockquote className="text-2xl italic text-gray-700 mb-6 font-serif">
-              "Match your style. Mini-size."
+            <blockquote className="text-lg sm:text-xl lg:text-2xl italic text-gray-700 mb-4 sm:mb-6 font-serif">
+              "Fashion for the next generation."
             </blockquote>
-            <p className="text-xl text-gray-700 mb-8 leading-relaxed max-w-lg">
-              {miniMeData?.description || 'Thoughtfully designed pieces that celebrate childhood while maintaining the sophistication of grown-up fashion.'}
+            <p className="text-base sm:text-lg lg:text-xl text-gray-700 mb-6 sm:mb-8 leading-relaxed max-w-lg">
+              {miniMeData?.description || 'Adorable and comfortable clothing designed for children who love to express their unique style.'}
             </p>
             <Link href={`/brands/${miniMeData?.name.toLowerCase().replace(/\s+/g, '-') || 'minime'}`}>
               <Button
                 size="lg"
-                className="bg-green-400 text-black hover:bg-black hover:text-white transition-all duration-300 px-8 py-4 rounded-full"
+                className="bg-yellow-400 text-black hover:bg-black hover:text-white transition-all duration-300 px-6 sm:px-8 py-3 sm:py-4 rounded-full text-base sm:text-lg"
               >
                 View Collection
-                <ArrowRight className="w-5 h-5 ml-2" />
+                <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 ml-2" />
               </Button>
             </Link>
           </motion.div>
@@ -818,10 +839,10 @@ function MiniMeFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
               <img
                 src={miniMeData.image_url}
                 alt={`${miniMeData.name} Hero`}
-                className="w-full h-96 lg:h-[500px] object-cover rounded-2xl shadow-2xl"
+                className="w-full h-64 sm:h-80 lg:h-96 xl:h-[500px] object-cover rounded-2xl shadow-2xl"
               />
             ) : (
-              <div className="w-full h-96 lg:h-[500px] bg-gray-200 rounded-2xl shadow-2xl animate-pulse"></div>
+              <div className="w-full h-64 sm:h-80 lg:h-96 xl:h-[500px] bg-gray-200 rounded-2xl shadow-2xl animate-pulse"></div>
             )}
           </motion.div>
         </div>
@@ -831,15 +852,15 @@ function MiniMeFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
           initial={{ opacity: 0, y: 50 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.5 }}
-          className="mt-16"
+          className="mt-12 sm:mt-16"
         >
-          <h3 className="text-2xl font-bold text-black mb-8 text-center">Featured Pieces</h3>
+          <h3 className="text-xl sm:text-2xl font-bold text-black mb-6 sm:mb-8 text-center">Featured Pieces</h3>
           {loading ? (
             <div className="flex justify-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-400"></div>
             </div>
           ) : featuredProducts.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
               {featuredProducts.map((product, index) => (
                 <motion.div
                   key={product.id}
@@ -885,7 +906,7 @@ function MiniMeFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
               {fallbackProducts.map((product, index) => (
                 <motion.div
                   key={product.name}
@@ -934,7 +955,9 @@ function OthersFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   
-  const othersData = brands.find(brand => brand.name.toLowerCase() === 'others')
+  const othersData = brands.find(brand => 
+    brand.name.toLowerCase().includes('others')
+  )
 
   useEffect(() => {
     const fetchFeaturedProducts = async () => {
@@ -963,114 +986,162 @@ function OthersFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
     fetchFeaturedProducts()
   }, [othersData])
 
-  // Fallback hardcoded products for Others category (snacks, etc.)
+  // Fallback hardcoded products
   const fallbackProducts = [
-    {
-      name: "Premium Snack Mix",
-      price: "₦3,500",
-      image: "https://images.unsplash.com/photo-1599490659213-e2b9527bd087?w=300&h=400&fit=crop&crop=center",
-    },
-    {
-      name: "Artisan Chocolate",
-      price: "₦2,800",
-      image: "https://images.unsplash.com/photo-1549007994-cb92caebd54b?w=300&h=400&fit=crop&crop=center",
-    },
-    {
-      name: "Gourmet Cookies",
-      price: "₦4,200",
-      image: "https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=300&h=400&fit=crop&crop=center",
-    },
+    { name: "Statement Necklace", price: "₦15,000", image: "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=300&h=400&fit=crop&crop=center" },
+    { name: "Designer Bag", price: "₦45,000", image: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=300&h=400&fit=crop&crop=center" },
+    { name: "Silk Scarf", price: "₦12,000", image: "https://images.unsplash.com/photo-1584464491033-06628f3a6b7b?w=300&h=400&fit=crop&crop=center" },
   ]
 
   const displayProducts = featuredProducts.length > 0 ? featuredProducts : fallbackProducts
 
   return (
-    <div className="min-h-screen flex items-center bg-gradient-to-br from-orange-50 to-red-50 relative py-20">
-      <div className="container mx-auto px-6">
-        <div className="grid lg:grid-cols-2 gap-12 items-center">
-          <motion.div initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 1 }}>
-            <Badge className="bg-orange-400 text-white mb-6 px-4 py-2 text-lg">
+    <div className="min-h-screen flex items-center bg-gradient-to-br from-purple-50 to-indigo-50 relative py-12 sm:py-20">
+      <div className="container mx-auto px-4 sm:px-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
+          <motion.div
+            initial={{ opacity: 0, x: 50 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 1 }}
+            className="order-2 lg:order-1 relative"
+          >
+            {othersData?.image_url ? (
+              <img
+                src={othersData.image_url}
+                alt={`${othersData.name} Hero`}
+                className="w-full h-64 sm:h-80 lg:h-96 xl:h-[500px] object-cover rounded-2xl shadow-2xl"
+              />
+            ) : (
+              <div className="w-full h-64 sm:h-80 lg:h-96 xl:h-[500px] bg-gray-200 rounded-2xl shadow-2xl animate-pulse"></div>
+            )}
+          </motion.div>
+
+          <motion.div initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 1, delay: 0.2 }}>
+            <Badge className="bg-purple-400 text-white mb-4 sm:mb-6 px-3 sm:px-4 py-1 sm:py-2 text-base sm:text-lg">
               {othersData?.name || 'Others'}
             </Badge>
-            <h2 className="text-5xl md:text-6xl font-bold text-black mb-6 leading-tight">
-              Treats &
+            <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-black mb-4 sm:mb-6 leading-tight">
+              Unique &
               <br />
-              <span className="italic font-serif">Delights</span>
+              <span className="italic font-serif">Curated</span>
             </h2>
-            <blockquote className="text-2xl italic text-gray-700 mb-6 font-serif">
-              "Life's little pleasures."
+            <blockquote className="text-lg sm:text-xl lg:text-2xl italic text-gray-700 mb-4 sm:mb-6 font-serif">
+              "Discover the extraordinary."
             </blockquote>
-            <p className="text-xl text-gray-700 mb-8 leading-relaxed max-w-lg">
-              {othersData?.description || 'Discover our curated selection of premium snacks, treats, and lifestyle products that add joy to your everyday moments.'}
+            <p className="text-base sm:text-lg lg:text-xl text-gray-700 mb-6 sm:mb-8 leading-relaxed max-w-lg">
+              {othersData?.description || 'A carefully curated selection of unique pieces and accessories that complete your perfect look.'}
             </p>
             <Link href={`/brands/${othersData?.name.toLowerCase().replace(/\s+/g, '-') || 'others'}`}>
               <Button
                 size="lg"
-                className="bg-orange-400 text-white hover:bg-black hover:text-white transition-all duration-300 px-8 py-4 rounded-full"
+                className="bg-purple-400 text-white hover:bg-black hover:text-white transition-all duration-300 px-6 sm:px-8 py-3 sm:py-4 rounded-full text-base sm:text-lg"
               >
-                Explore Collection
-                <ArrowRight className="ml-2 w-5 h-5" />
+                View Collection
+                <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 ml-2" />
               </Button>
             </Link>
           </motion.div>
+        </div>
 
-          <motion.div
-            initial={{ opacity: 0, x: 50 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 1, delay: 0.2 }}
-            className="relative"
-          >
-            {loading ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="bg-gray-200 animate-pulse rounded-lg h-64"></div>
-                ))}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {displayProducts.map((product, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, y: 30 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.6, delay: index * 0.1 }}
-                    className="group cursor-pointer"
+        {/* Featured Products */}
+        <motion.div
+          initial={{ opacity: 0, y: 50 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.5 }}
+          className="mt-12 sm:mt-16"
+        >
+          <h3 className="text-xl sm:text-2xl font-bold text-black mb-6 sm:mb-8 text-center">Featured Pieces</h3>
+          {loading ? (
+            <div className="flex justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-400"></div>
+            </div>
+          ) : featuredProducts.length > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+              {featuredProducts.map((product, index) => (
+                <motion.div
+                  key={product.id}
+                  initial={{ opacity: 0, y: 30 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: 0.7 + index * 0.1 }}
+                  className="group"
+                >
+                  <div 
+                    className="cursor-pointer transition-all duration-300 hover:scale-105"
                     onClick={() => onProductClick(product)}
                   >
-                    <div className="relative overflow-hidden rounded-lg shadow-lg group-hover:shadow-2xl transition-all duration-300">
+                    <div className="relative overflow-hidden rounded-lg">
                       <img
-                        src={'thumbnail_url' in product ? product.thumbnail_url : product.image}
+                        src={product.thumbnail_url}
                         alt={product.name}
-                        className="w-full h-64 object-cover group-hover:scale-110 transition-transform duration-500"
+                        className="w-full aspect-[9/16] object-cover transition-transform duration-500"
                       />
-                      {'has_active_discount' in product && product.has_active_discount && (
+                      {product.has_active_discount && (
                         <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-md text-xs font-bold shadow-lg">
                           {product.discount_percentage ? `${product.discount_percentage}% OFF` : `₦${product.discount_amount?.toLocaleString()} OFF`}
                         </div>
                       )}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                      <div className="absolute bottom-4 left-4 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                        <h3 className="font-semibold text-lg">{product.name}</h3>
-                        {'has_active_discount' in product && product.has_active_discount ? (
-                          <div className="space-y-1">
-                            <p className="text-orange-200 font-bold">₦{product.discounted_price?.toLocaleString()}</p>
-                            <p className="text-gray-300 line-through text-sm">₦{typeof product.price === 'number' ? product.price.toLocaleString() : parseInt(String(product.price).replace(/[₦,]/g, '')).toLocaleString()}</p>
-                          </div>
+                    </div>
+                    <div className="mt-3 sm:mt-4">
+                      <h3 className="font-semibold text-black mb-2 text-sm sm:text-base line-clamp-2">{product.name}</h3>
+                      <div className="space-y-1">
+                        {product.has_active_discount ? (
+                          <>
+                            <p className="text-purple-600 font-bold text-base sm:text-lg">₦{product.discounted_price?.toLocaleString()}</p>
+                            <p className="text-gray-500 line-through text-xs sm:text-sm">₦{product.price.toLocaleString()}</p>
+                            <p className="text-green-600 text-xs font-medium">
+                              You save ₦{((product.price - (product.discounted_price || 0))).toLocaleString()}
+                            </p>
+                          </>
                         ) : (
-                          <p className="text-orange-200 font-bold">{typeof product.price === 'number' ? `₦${product.price.toLocaleString()}` : product.price}</p>
+                          <p className="text-purple-600 font-bold text-base sm:text-lg">₦{product.price.toLocaleString()}</p>
                         )}
                       </div>
                     </div>
-                    <div className="mt-4">
-                      <h3 className="font-semibold text-black mb-2 text-sm">{product.name}</h3>
-                      <p className="text-orange-600 font-bold text-lg">{typeof product.price === 'number' ? `₦${product.price.toLocaleString()}` : product.price}</p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+              {fallbackProducts.map((product, index) => (
+                <motion.div
+                  key={product.name}
+                  initial={{ opacity: 0, y: 30 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: 0.7 + index * 0.1 }}
+                  className="group"
+                >
+                  <div 
+                    className="cursor-pointer transition-all duration-300 hover:scale-105"
+                    onClick={() => {
+                      onProductClick({
+                        id: product.name.toLowerCase().replace(/\s+/g, '-'),
+                        name: product.name,
+                        price: parseInt(product.price.replace(/[₦,]/g, '')),
+                        thumbnail_url: product.image,
+                        description: `Unique ${product.name} from Others collection`,
+                        in_stock: true,
+                        additional_images: []
+                      })
+                    }}
+                  >
+                    <div className="relative overflow-hidden rounded-lg">
+                      <img
+                        src={product.image}
+                        alt={product.name}
+                        className="w-full aspect-[9/16] object-cover transition-transform duration-500"
+                      />
                     </div>
-                  </motion.div>
-                ))}
-              </div>
-            )}
-          </motion.div>
-        </div>
+                    <div className="mt-3 sm:mt-4">
+                      <h3 className="font-semibold text-black mb-2 text-sm sm:text-base line-clamp-2">{product.name}</h3>
+                      <p className="text-purple-600 font-bold text-base sm:text-lg">{product.price}</p>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </motion.div>
       </div>
     </div>
   )
@@ -1085,26 +1156,6 @@ function FooterFrame() {
         <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1 }}>
           <div className="w-20 h-20 bg-yellow-400 rounded-full flex items-center justify-center mx-auto mb-8">
             <span className="text-black font-bold text-2xl">FT</span>
-          </div>
-
-          <h2 className="text-4xl font-bold mb-6">Stay Connected</h2>
-          <p className="text-xl text-gray-300 mb-12 max-w-2xl mx-auto">
-            Join our community and be the first to know about new collections, exclusive offers, and fashion insights.
-          </p>
-
-          {/* Newsletter */}
-          <div className="max-w-md mx-auto mb-12">
-            <div className="flex space-x-4">
-              <input
-                type="email"
-                placeholder="Enter your email"
-                className="flex-1 px-4 py-3 rounded-full bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-400"
-              />
-              <Button className="bg-yellow-400 text-black hover:bg-yellow-500 px-6 py-3 rounded-full">
-                <Mail className="w-4 h-4 mr-2" />
-                Subscribe
-              </Button>
-            </div>
           </div>
 
           {/* Contact & Social */}
@@ -1145,7 +1196,7 @@ function FooterFrame() {
           </div>
 
           <div className="border-t border-gray-800 pt-8">
-            <p className="text-gray-400">© 2014-2024 Favorite Things. All rights reserved. Crafted with love in Nigeria.</p>
+            <p className="text-gray-400">© 2014 Favorite Things. All rights reserved. Crafted with love in Nigeria.</p>
           </div>
         </motion.div>
       </div>
@@ -1252,18 +1303,20 @@ export default function HomePage() {
       </div>
 
       {/* Product Modal */}
-      <ProductModal
-        product={selectedProduct}
-        isOpen={isModalOpen}
-        onClose={() => {
-          setIsModalOpen(false)
-          setSelectedProduct(null)
-        }}
-        onAddToCart={(product) => {
-          // TODO: Implement add to cart functionality
-          console.log('Add to cart:', product.id)
-        }}
-      />
+      <Suspense fallback={<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div></div>}>
+        <ProductModal
+          product={selectedProduct}
+          isOpen={isModalOpen}
+          onClose={() => {
+            setIsModalOpen(false)
+            setSelectedProduct(null)
+          }}
+          onAddToCart={(product) => {
+            // TODO: Implement add to cart functionality
+            console.log('Add to cart:', product.id)
+          }}
+        />
+      </Suspense>
 
 
     </div>

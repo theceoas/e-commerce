@@ -49,17 +49,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Get initial session
     const getInitialSession = async () => {
-      const { data: { session }, error } = await supabase.auth.getSession()
-      if (error) {
-        console.error('Error getting session:', error)
-      } else {
-        setSession(session)
-        if (session?.user) {
-          const profile = await fetchUserProfile(session.user.id)
-          setUser({ ...session.user, role: profile?.role || 'customer' })
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession()
+        if (error) {
+          console.error('Error getting session:', error)
+          // Clear any invalid session data
+          await supabase.auth.signOut()
         } else {
-          setUser(null)
+          setSession(session)
+          if (session?.user) {
+            const profile = await fetchUserProfile(session.user.id)
+            setUser({ ...session.user, role: profile?.role || 'customer' })
+          } else {
+            setUser(null)
+          }
         }
+      } catch (error) {
+        console.error('Session initialization error:', error)
+        // Clear any corrupted session data
+        await supabase.auth.signOut()
+        setSession(null)
+        setUser(null)
       }
       setLoading(false)
     }
@@ -70,6 +80,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state changed:', event, session)
+        
+        // Handle token refresh errors
+        if (event === 'TOKEN_REFRESHED' && !session) {
+          console.log('Token refresh failed, signing out')
+          await supabase.auth.signOut()
+          setSession(null)
+          setUser(null)
+          setLoading(false)
+          return
+        }
+        
         setSession(session)
         
         if (session?.user) {

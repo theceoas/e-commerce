@@ -1,23 +1,18 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense, lazy } from "react"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
-import {
-  ShoppingBag,
-  Heart,
-  ArrowRight,
-  ArrowLeft,
-  Star,
-  Filter,
-  Plus,
-} from "lucide-react"
+import { ArrowLeft, Star, Heart, ShoppingBag, Filter, Plus } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import Link from "next/link"
+import Image from "next/image"
 import { useParams, useSearchParams } from "next/navigation"
-import { ProductModal } from "@/components/product-modal"
+
+// Lazy load components for better performance
+const ProductModal = lazy(() => import("@/components/product-modal").then(module => ({ default: module.ProductModal })))
 
 interface Brand {
   id: string
@@ -187,25 +182,22 @@ export default function BrandPage() {
           </Button>
         </Link>
 
-        {/* Brand Hero Section */}
+        {/* Hero Section */}
         <motion.div
-          initial={{ opacity: 0, y: 30 }}
+          initial={{ opacity: 0, y: 50 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          className="text-center mb-12"
+          transition={{ duration: 1 }}
+          className="text-center mb-12 sm:mb-16"
         >
-          <Badge className={`${colors.badge} text-white mb-6 px-6 py-3 text-xl`}>
-            {brand.name}
-          </Badge>
-          <h1 className="text-5xl md:text-7xl font-bold text-black mb-6 leading-tight">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-7xl font-bold text-black mb-4 sm:mb-6 leading-tight">
             {brand.name}
             <br />
-            <span className="italic font-serif text-4xl md:text-5xl">Collection</span>
+            <span className="italic font-serif text-2xl sm:text-3xl md:text-4xl lg:text-5xl">Collection</span>
           </h1>
-          <p className="text-xl text-gray-700 mb-8 max-w-2xl mx-auto leading-relaxed">
+          <p className="text-base sm:text-lg lg:text-xl text-gray-700 mb-6 sm:mb-8 max-w-2xl mx-auto leading-relaxed px-4">
             {brand.description}
           </p>
-          <div className="w-full h-64 md:h-96 relative rounded-2xl overflow-hidden shadow-2xl mb-8">
+          <div className="w-full h-48 sm:h-64 md:h-80 lg:h-96 relative rounded-2xl overflow-hidden shadow-2xl mb-6 sm:mb-8 mx-4 sm:mx-0">
             <img
               src={brand.image_url}
               alt={brand.name}
@@ -220,12 +212,13 @@ export default function BrandPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="flex flex-wrap gap-4 justify-center mb-12"
+            className="flex flex-wrap gap-2 sm:gap-4 justify-center mb-8 sm:mb-12 px-4"
           >
             <Button
               variant={selectedCategory === "all" ? "default" : "outline"}
               onClick={() => setSelectedCategory("all")}
-              className={selectedCategory === "all" ? colors.button : ""}
+              className={`text-xs sm:text-sm ${selectedCategory === "all" ? colors.button : ""}`}
+              size="sm"
             >
               All Products
             </Button>
@@ -234,7 +227,8 @@ export default function BrandPage() {
                 key={category}
                 variant={selectedCategory === category ? "default" : "outline"}
                 onClick={() => setSelectedCategory(category)}
-                className={selectedCategory === category ? colors.button : ""}
+                className={`text-xs sm:text-sm ${selectedCategory === category ? colors.button : ""}`}
+                size="sm"
               >
                 {category}
               </Button>
@@ -247,9 +241,10 @@ export default function BrandPage() {
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.4 }}
+          className="px-4 sm:px-0"
         >
           {filteredProducts.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-3 sm:gap-4 md:gap-6 lg:gap-8">
               {filteredProducts.map((product, index) => (
                 <motion.div
                   key={product.id}
@@ -269,23 +264,22 @@ export default function BrandPage() {
                         src={product.thumbnail_url || '/images/placeholder.jpg'}
                         alt={product.name}
                         className="w-full aspect-[9/16] object-cover transition-transform duration-500"
-                        style={{ aspectRatio: '9/16' }}
                       />
                       <Button
                         size="sm"
-                        className={`absolute bottom-4 right-4 ${colors.button} text-white rounded-full w-10 h-10 p-0 shadow-lg`}
+                        className={`absolute bottom-2 sm:bottom-4 right-2 sm:right-4 ${colors.button} text-white rounded-full w-8 h-8 sm:w-10 sm:h-10 p-0 shadow-lg`}
                         onClick={(e) => {
                           e.stopPropagation()
                           // TODO: Add to cart functionality
                           console.log('Add to cart:', product.id)
                         }}
                       >
-                        <Plus className="w-5 h-5" />
+                        <Plus className="w-3 h-3 sm:w-5 sm:h-5" />
                       </Button>
                     </div>
-                    <div className="mt-4">
-                      <h3 className="font-semibold text-black mb-2 text-sm">{product.name}</h3>
-                      <p className={`font-bold text-lg ${colors.accent}`}>
+                    <div className="mt-2 sm:mt-4">
+                      <h3 className="font-semibold text-black mb-1 sm:mb-2 text-xs sm:text-sm line-clamp-2">{product.name}</h3>
+                      <p className={`font-bold text-sm sm:text-lg ${colors.accent}`}>
                         ₦{product.price.toLocaleString()}
                       </p>
                     </div>
@@ -294,9 +288,9 @@ export default function BrandPage() {
               ))}
             </div>
           ) : (
-            <div className="text-center py-16">
-              <h3 className="text-2xl font-bold text-gray-600 mb-4">No products found</h3>
-              <p className="text-gray-500">
+            <div className="text-center py-12 sm:py-16">
+              <h3 className="text-xl sm:text-2xl font-bold text-gray-600 mb-4">No products found</h3>
+              <p className="text-gray-500 text-sm sm:text-base px-4">
                 {selectedCategory === "all" 
                   ? "This brand doesn't have any products yet." 
                   : `No products found in the ${selectedCategory} category.`}
@@ -307,18 +301,20 @@ export default function BrandPage() {
       </div>
 
       {/* Product Modal */}
-      <ProductModal
-        product={selectedProduct}
-        isOpen={isModalOpen}
-        onClose={() => {
-          setIsModalOpen(false)
-          setSelectedProduct(null)
-        }}
-        onAddToCart={(product) => {
-          // TODO: Implement add to cart functionality
-          console.log('Add to cart:', product.id)
-        }}
-      />
+      <Suspense fallback={<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div></div>}>
+        <ProductModal
+          product={selectedProduct}
+          isOpen={isModalOpen}
+          onClose={() => {
+            setIsModalOpen(false)
+            setSelectedProduct(null)
+          }}
+          onAddToCart={(product) => {
+            // TODO: Implement add to cart functionality
+            console.log('Add to cart:', product.id)
+          }}
+        />
+      </Suspense>
     </div>
   )
 }
