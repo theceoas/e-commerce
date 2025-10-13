@@ -21,6 +21,9 @@ import {
 import { supabase } from "@/lib/supabase"
 import Link from "next/link"
 import Image from "next/image"
+import { ProductGridSkeleton } from "@/components/product-skeleton"
+import { BrandGridSkeleton } from "@/components/brand-skeleton"
+import { useBrands, useFeaturedProducts } from "@/hooks/useSupabaseCache"
 
 // Lazy load the ProductModal component
 const ProductModal = lazy(() => import("@/components/product-modal").then(module => ({ default: module.ProductModal })))
@@ -252,13 +255,7 @@ function WelcomeFrame({ brands, loading }: { brands: Brand[]; loading?: boolean 
             className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 lg:gap-8 mb-8 sm:mb-12 max-w-5xl mx-auto px-4"
           >
             {loading ? (
-              // Show loading skeletons instead of empty cards
-              Array.from({ length: 3 }).map((_, index) => (
-                <div key={index} className="relative group">
-                  <div className="w-full h-64 bg-gray-200 rounded-lg animate-pulse"></div>
-                  <div className="absolute top-4 left-4 w-16 h-6 bg-gray-300 rounded animate-pulse"></div>
-                </div>
-              ))
+              <BrandGridSkeleton count={3} />
             ) : (
               brands.filter(brand => brand.is_active).slice(0, 3).map((brand, index) => {
               const badgeColors = [
@@ -349,37 +346,9 @@ function WelcomeFrame({ brands, loading }: { brands: Brand[]; loading?: boolean 
 }
 
 function KiowaFrame({ brands, onProductClick }: { brands: Brand[]; onProductClick: (product: any) => void }) {
-  const [featuredProducts, setFeaturedProducts] = useState<Product[]>([])
-  const [loading, setLoading] = useState(true)
-  
   const kiowaData = brands.find(brand => brand.name.toLowerCase() === 'kiowa')
-
-  useEffect(() => {
-    const fetchFeaturedProducts = async () => {
-      if (!kiowaData) return
-      
-      try {
-        const { data, error } = await supabase
-          .from('products_with_discounts')
-          .select('*')
-          .eq('brand_id', kiowaData.id)
-          .eq('featured', true)
-          .eq('in_stock', true)
-          .limit(3)
-          .order('created_at', { ascending: false })
-
-        if (error) throw error
-        setFeaturedProducts(data || [])
-      } catch (error) {
-        console.error('Error fetching featured products:', error)
-        setFeaturedProducts([])
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchFeaturedProducts()
-  }, [kiowaData])
+  const { data: featuredProductsData, loading } = useFeaturedProducts(kiowaData?.id || '')
+  const featuredProducts = featuredProductsData || []
 
   // Fallback hardcoded products
   const fallbackProducts = [
@@ -454,9 +423,7 @@ function KiowaFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
         >
           <h3 className="text-xl sm:text-2xl font-bold text-black mb-6 sm:mb-8 text-center">Featured Pieces</h3>
           {loading ? (
-            <div className="flex justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-400"></div>
-            </div>
+            <ProductGridSkeleton count={4} />
           ) : featuredProducts.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
               {featuredProducts.map((product, index) => (
@@ -658,9 +625,7 @@ function OmegeFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
         >
           <h3 className="text-xl sm:text-2xl font-bold text-black mb-6 sm:mb-8 text-center">Featured Pieces</h3>
           {loading ? (
-            <div className="flex justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-400"></div>
-            </div>
+            <ProductGridSkeleton count={4} />
           ) : featuredProducts.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
               {featuredProducts.map((product, index) => (
@@ -856,9 +821,7 @@ function MiniMeFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
         >
           <h3 className="text-xl sm:text-2xl font-bold text-black mb-6 sm:mb-8 text-center">Featured Pieces</h3>
           {loading ? (
-            <div className="flex justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-400"></div>
-            </div>
+            <ProductGridSkeleton count={4} />
           ) : featuredProducts.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
               {featuredProducts.map((product, index) => (
@@ -1052,9 +1015,7 @@ function OthersFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
         >
           <h3 className="text-xl sm:text-2xl font-bold text-black mb-6 sm:mb-8 text-center">Featured Pieces</h3>
           {loading ? (
-            <div className="flex justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-400"></div>
-            </div>
+            <ProductGridSkeleton count={4} />
           ) : featuredProducts.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
               {featuredProducts.map((product, index) => (
@@ -1206,33 +1167,10 @@ function FooterFrame() {
 
 export default function HomePage() {
   const { user, loading } = useAuth()
-  const [brands, setBrands] = useState<Brand[]>([])
-  const [brandsLoading, setBrandsLoading] = useState(true)
+  const { data: brandsData, loading: brandsLoading } = useBrands()
+  const brands = brandsData || []
   const [selectedProduct, setSelectedProduct] = useState<any>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
-
-
-  useEffect(() => {
-    fetchBrands()
-  }, [])
-
-  const fetchBrands = async () => {
-    try {
-      setBrandsLoading(true)
-      const { data, error } = await supabase
-        .from('brands')
-        .select('*')
-        .eq('is_active', true)
-        .order('display_order', { ascending: true })
-
-      if (error) throw error
-      setBrands(data || [])
-    } catch (error) {
-      console.error('Error fetching brands:', error)
-    } finally {
-      setBrandsLoading(false)
-    }
-  }
 
   const handleProductClick = (product: any) => {
     setSelectedProduct(product)

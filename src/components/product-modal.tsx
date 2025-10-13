@@ -52,8 +52,13 @@ export function ProductModal({
   const [shareUrl, setShareUrl] = useState('')
   const [copied, setCopied] = useState(false)
   const [isAddingToCart, setIsAddingToCart] = useState(false)
+  const [touchStart, setTouchStart] = useState<number | null>(null)
+  const [touchEnd, setTouchEnd] = useState<number | null>(null)
   
   const { addToCart } = useCart()
+
+  // Minimum swipe distance (in px)
+  const minSwipeDistance = 50
 
   // All hooks must be called before any conditional returns
   useEffect(() => {
@@ -98,6 +103,35 @@ export function ProductModal({
       return () => document.removeEventListener('keydown', handleKeyDown)
     }
   }, [isOpen, images.length])
+
+  // Touch handlers for swipe functionality
+  const onTouchStart = (e: React.TouchEvent) => {
+    setTouchEnd(null) // otherwise the swipe is fired even with usual touch events
+    setTouchStart(e.targetTouches[0].clientX)
+  }
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.targetTouches[0].clientX)
+  }
+
+  const onTouchEnd = () => {
+    if (!touchStart || !touchEnd) return
+    
+    const distance = touchStart - touchEnd
+    const isLeftSwipe = distance > minSwipeDistance
+    const isRightSwipe = distance < -minSwipeDistance
+
+    if (images.length > 1) {
+      if (isLeftSwipe) {
+        // Swipe left - next image
+        setSelectedImageIndex(prev => prev < images.length - 1 ? prev + 1 : 0)
+      }
+      if (isRightSwipe) {
+        // Swipe right - previous image
+        setSelectedImageIndex(prev => prev > 0 ? prev - 1 : images.length - 1)
+      }
+    }
+  }
 
   // Now we can safely return early after all hooks are called
   if (!product || !isOpen) return null
@@ -168,11 +202,17 @@ export function ProductModal({
         {/* Image Section - Responsive */}
         <div className="flex-1 relative bg-white flex items-center justify-center overflow-hidden">
           {/* Main Image Display */}
-          <div className="relative w-full h-full flex items-center justify-center p-4 md:p-8">
+          <div 
+            className="relative w-full h-full flex items-center justify-center p-4 md:p-8"
+            onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
+            onTouchEnd={onTouchEnd}
+          >
             <img
               src={images[selectedImageIndex] || '/images/placeholder.jpg'}
               alt={product.name}
-              className="max-w-full max-h-full object-contain transition-all duration-500 shadow-2xl"
+              className="max-w-full max-h-full object-contain transition-all duration-500 shadow-2xl select-none"
+              draggable={false}
             />
             
             {!product.in_stock && (
