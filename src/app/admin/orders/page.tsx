@@ -1,12 +1,27 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 
-import { ProductModal } from '@/components/product-modal';
+const ProductModal = dynamic(
+  () => import('@/components/product-modal'),
+  { 
+    ssr: false,
+    loading: () => (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg p-6 animate-pulse">
+          <div className="h-6 bg-gray-200 rounded w-32 mb-4"></div>
+          <div className="h-4 bg-gray-200 rounded w-48"></div>
+        </div>
+      </div>
+    )
+  }
+);
+
 import { 
   Eye, 
   Download, 
@@ -74,6 +89,43 @@ interface Order {
   }>;
 }
 
+// Skeleton components for loading states
+function OrderCardSkeleton() {
+  return (
+    <div className="border rounded-lg p-4 space-y-3 animate-pulse">
+      <div className="flex justify-between items-start">
+        <div className="space-y-2">
+          <div className="h-4 bg-gray-200 rounded w-32"></div>
+          <div className="h-3 bg-gray-200 rounded w-24"></div>
+        </div>
+        <div className="h-6 bg-gray-200 rounded w-20"></div>
+      </div>
+      <div className="space-y-2">
+        <div className="h-3 bg-gray-200 rounded w-48"></div>
+        <div className="h-3 bg-gray-200 rounded w-36"></div>
+      </div>
+    </div>
+  )
+}
+
+function OrdersPageSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="h-8 bg-gray-200 rounded w-48 animate-pulse"></div>
+      <div className="flex gap-4">
+        <div className="h-10 bg-gray-200 rounded w-32 animate-pulse"></div>
+        <div className="h-10 bg-gray-200 rounded w-32 animate-pulse"></div>
+        <div className="h-10 bg-gray-200 rounded flex-1 animate-pulse"></div>
+      </div>
+      <div className="space-y-4">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <OrderCardSkeleton key={i} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -90,6 +142,8 @@ export default function AdminOrdersPage() {
   const [pendingStatusChange, setPendingStatusChange] = useState<{orderId: string, newStatus: string, currentStatus: string} | null>(null);
 
   useEffect(() => {
+    // Prefetch ProductModal chunk to avoid runtime chunk load errors
+    import('@/components/product-modal');
     loadOrders();
   }, []);
 
@@ -377,21 +431,24 @@ export default function AdminOrdersPage() {
     }
   };
 
-  const filteredOrders = orders.filter(order => {
-    const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
-    const matchesPayment = paymentFilter === 'all' || order.payment_status === paymentFilter;
-    const matchesSearch = searchTerm === '' || 
-      order.order_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.guest_email?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    return matchesStatus && matchesPayment && matchesSearch;
-  });
+  // Memoize filtered orders for better performance
+  const filteredOrders = useMemo(() => {
+    return orders.filter(order => {
+      const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
+      const matchesPayment = paymentFilter === 'all' || order.payment_status === paymentFilter;
+      const matchesSearch = searchTerm === '' || 
+        order.order_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        order.guest_email?.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      return matchesStatus && matchesPayment && matchesSearch;
+    });
+  }, [orders, statusFilter, paymentFilter, searchTerm]);
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-yellow-50 to-orange-50 w-full flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-500"></div>
-      </div>
+      <Suspense fallback={<OrdersPageSkeleton />}>
+        <OrdersPageSkeleton />
+      </Suspense>
     );
   }
 

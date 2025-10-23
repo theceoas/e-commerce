@@ -1,0 +1,146 @@
+
+Improve image delivery Est savings of 18,989 KiB
+Reducing the download time of images can improve the perceived load time of the page and LCP. Learn more about optimizing image sizeLCPFCP
+URL
+Resource Size
+Est Savings
+supabase.co
+19,089.1 KiB	18,988.5 KiB
+…products/176…-0-ay9iekiz6ti.jpeg(ysubkmcyeqosjybogvyq.supabase.co)
+3,432.2 KiB
+3,422.4 KiB
+Using a modern image format (WebP, AVIF) or increasing the image compression could improve this image's download size.
+1,948.5 KiB
+This image file is larger than it needs to be (2261x4032) for its displayed dimensions (213x284). Use responsive images to reduce the image download size.
+3,409.4 KiB
+…products/176…-1-pfc206eersg.jpeg(ysubkmcyeqosjybogvyq.supabase.co)
+2,524.0 KiB
+2,514.1 KiB
+Using a modern image format (WebP, AVIF) or increasing the image compression could improve this image's download size.
+1,040.3 KiB
+This image file is larger than it needs to be (2261x4032) for its displayed dimensions (213x284). Use responsive images to reduce the image download size.
+2,507.2 KiB
+…products/176…-0-8cic01mssn4.jpeg(ysubkmcyeqosjybogvyq.supabase.co)
+2,373.3 KiB
+2,363.5 KiB
+Using a modern image format (WebP, AVIF) or increasing the image compression could improve this image's download size.
+889.6 KiB
+This image file is larger than it needs to be (2261x4032) for its displayed dimensions (213x284). Use responsive images to reduce the image download size.
+2,357.5 KiB
+…products/176…-0-uwqb9fxdn7s.jpeg(ysubkmcyeqosjybogvyq.supabase.co)
+2,373.3 KiB
+2,363.5 KiB
+Using a modern image format (WebP, AVIF) or increasing the image compression could improve this image's download size.
+889.6 KiB
+This image file is larger than it needs to be (2261x4032) for its displayed dimensions (213x284). Use responsive images to reduce the image download size.
+2,357.5 KiB
+…products/176…-0-rq7f3jlp09.jpeg(ysubkmcyeqosjybogvyq.supabase.co)
+2,136.7 KiB
+2,126.8 KiB
+Using a modern image format (WebP, AVIF) or increasing the image compression could improve this image's download size.
+653.0 KiB
+This image file is larger than it needs to be (2261x4032) for its displayed dimensions (213x284). Use responsive images to reduce the image download size.
+2,122.5 KiB
+…products/176…-0-8jb2gxhlhmu.jpeg(ysubkmcyeqosjybogvyq.supabase.co)
+1,944.1 KiB
+1,934.2 KiB
+Using a modern image format (WebP, AVIF) or increasing the image compression could improve this image's download size.
+460.3 KiB
+This image file is larger than it needs to be (2261x4032) for its displayed dimensions (213x284). Use responsive images to reduce the image download size.
+1,931.1 KiB
+…products/176…-0-wp8jet6yugd.jpeg(ysubkmcyeqosjybogvyq.supabase.co)
+1,766.9 KiB
+1,757.0 KiB
+Using a modern image format (WebP, AVIF) or increasing the image compression could improve this image's download size.
+283.1 KiB
+This image file is larger than it needs to be (2261x4032) for its displayed dimensions (213x284). Use responsive images to reduce the image download size.
+1,755.1 KiB
+…products/176…-2-ag5dii82j9i.jpeg(ysubkmcyeqosjybogvyq.supabase.co)
+1,587.0 KiB
+1,577.1 KiB
+Using a modern image format (WebP, AVIF) or increasing the image compression could improve this image's download size.
+103.3 KiB
+This image file is larger than it needs to be (2261x4032) for its displayed dimensions (213x284). Use responsive images to reduce the image download size.
+1,576.5 KiB
+…brands/43302120-b7da-4219-a295-c923e9902561-5rcpt5fxqx4.png(ysubkmcyeqosjybogvyq.supabase.co)
+951.5 KiB
+929.9 KiB
+Using a modern image format (WebP, AVIF) or increasing the image compression could improve this image's download size.
+861.4 KiB
+This image file is larger than it needs to be (1024x540) for its displayed dimensions (364x364). Use responsive images to reduce the image download size.
+723.5 KiB
+Use efficient cache lifetimes Est savings of 15,278 KiB
+A long cache lifetime can speed up repeat visits to your page. Learn more.LCPFCP
+Request
+Cache TTL
+Transfer Size
+supabase.co
+19,097 KiB
+…products/176…-0-ay9iekiz6ti.jpeg(ysubkmcyeqosjybogvyq.supabase.co)
+1h
+3,433 KiB
+…products/176…-1-pfc206eersg.jpeg(ysubkmcyeqosjybogvyq.supabase.co)
+1h
+2,525 KiB
+…products/176…-0-8cic01mssn4.jpeg(ysubkmcyeqosjybogvyq.supabase.co)
+1h
+2,374 KiB
+…products/176…-0-uwqb9fxdn7s.jpeg(ysubkmcyeqosjybogvyq.supabase.co)
+1h
+2,374 KiB
+…products/176…-0-rq7f3jlp09.jpeg(ysubkmcyeqosjybogvyq.supabase.co)
+1h
+2,138 KiB
+…products/176…-0-8jb2gxhlhmu.jpeg(ysubkmcyeqosjybogvyq.supabase.co)
+1h
+1,945 KiB
+…products/176…-0-wp8jet6yugd.jpeg(ysubkmcyeqosjybogvyq.supabase.co)
+1h
+1,768 KiB
+…products/176…-2-ag5dii82j9i.jpeg(ysubkmcyeqosjybogvyq.supabase.co)
+1h
+1,588 KiB
+…brands/43302120-b7da-4219-a295-c923e9902561-5rcpt5fxqx4.png(ysubkmcyeqosjybogvyq.supabase.co)
+1h
+952 KiB
+Render blocking requests Est savings of 630 ms
+Requests are blocking the page's initial render, which may delay LCP. Deferring or inlining can move these network requests out of the critical path.LCPFCP
+URL
+Transfer Size
+Duration
+favoritethingslifestyle.com 1st party
+20.6 KiB	810 ms
+…chunks/b0178d90f2987673.css(www.favoritethingslifestyle.com)
+19.3 KiB
+630 ms
+…chunks/2473c16c0c2f6b5f.css(www.favoritethingslifestyle.com)
+1.4 KiB
+180 ms
+Forced reflow
+A forced reflow occurs when JavaScript queries geometric properties (such as offsetWidth) after styles have been invalidated by a change to the DOM state. This can result in poor performance. Learn more about forced reflows and possible mitigations.
+Source
+Total reflow time
+[unattributed]
+34 ms
+LCP request discovery
+Optimize LCP by making the LCP image discoverable from the HTML immediately, and avoiding lazy-loadingLCP
+lazy load not applied
+fetchpriority=high should be applied
+Request is discoverable in initial document
+Kiowa
+<img alt="Kiowa" class="w-full h-full object-cover" src="https://ysubkmcyeqosjybogvyq.supabase.co/storage/v1/object/public/brand-im…">
+Network dependency tree
+Avoid chaining critical requests by reducing the length of chains, reducing the download size of resources, or deferring the download of unnecessary resources to improve page load.LCP
+Maximum critical path latency: 658 ms
+Initial Navigation
+/brands/kiowa(www.favoritethingslifestyle.com) - 578 ms, 3.25 KiB
+…chunks/2473c16c0c2f6b5f.css(www.favoritethingslifestyle.com) - 636 ms, 1.36 KiB
+…chunks/b0178d90f2987673.css(www.favoritethingslifestyle.com) - 658 ms, 19.27 KiB
+Preconnected origins
+preconnect hints help the browser establish a connection earlier in the page load, saving time when the first request for that origin is made. The following are the origins that the page preconnected to.
+no origins were preconnected
+Preconnect candidates
+Add preconnect hints to your most important origins, but try to use no more than 4.
+Origin
+Est LCP savings
+https://ysubkmcyeqosjybogvyq.supabase.co

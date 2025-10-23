@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ShoppingCart, Heart, Plus } from 'lucide-react'
 import { Product } from '@/lib/supabase'
+import { useCallback } from 'react'
 
 interface ProductCardProps {
   product: Product
@@ -22,12 +23,25 @@ export function ProductCard({
   isFavorite = false,
   onProductClick
 }: ProductCardProps) {
+  // Optimize click handlers with useCallback
+  const handleProductClick = useCallback(() => {
+    onProductClick?.(product)
+  }, [onProductClick, product])
+
+  const handleAddToCart = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    onAddToCart(product)
+  }, [onAddToCart, product])
+
+  const handleToggleFavorite = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    onToggleFavorite?.(product.id)
+  }, [onToggleFavorite, product.id])
+
   return (
     <div 
-      className="group cursor-pointer transition-all duration-300 hover:scale-105"
-      onClick={() => {
-        onProductClick?.(product)
-      }}
+      className="group cursor-pointer transition-all duration-200 hover:scale-[1.02]"
+      onClick={handleProductClick}
     >
       <div className="relative overflow-hidden rounded-lg">
         <Image
@@ -35,7 +49,11 @@ export function ProductCard({
           alt={product.name}
           width={300}
           height={533}
-          className="w-full aspect-[9/16] object-cover transition-transform duration-500"
+          className="w-full aspect-[9/16] object-cover transition-transform duration-300"
+          sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
+          loading="lazy"
+          placeholder="blur"
+          blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R//2Q=="
         />
         
         {/* Discount Badge Overlay */}
@@ -58,11 +76,8 @@ export function ProductCard({
         
         <Button
           size="sm"
-          className="absolute bottom-2 sm:bottom-4 right-2 sm:right-4 bg-blue-600 hover:bg-blue-700 text-white rounded-full w-8 h-8 sm:w-10 sm:h-10 p-0 shadow-lg"
-          onClick={(e) => {
-            e.stopPropagation()
-            onAddToCart(product)
-          }}
+          className="absolute bottom-2 sm:bottom-4 right-2 sm:right-4 bg-blue-600 hover:bg-blue-700 text-white rounded-full w-8 h-8 sm:w-10 sm:h-10 p-0 shadow-lg transition-all duration-200"
+          onClick={handleAddToCart}
           disabled={!product.in_stock}
         >
           <Plus className="w-3 h-3 sm:w-5 sm:h-5" />
@@ -72,11 +87,8 @@ export function ProductCard({
           <Button
             variant="ghost"
             size="sm"
-            className="absolute top-1 sm:top-2 right-1 sm:right-2 h-6 w-6 sm:h-8 sm:w-8 p-0 bg-white/80 hover:bg-white"
-            onClick={(e) => {
-              e.stopPropagation()
-              onToggleFavorite(product.id)
-            }}
+            className="absolute top-1 sm:top-2 right-1 sm:right-2 h-6 w-6 sm:h-8 sm:w-8 p-0 bg-white/80 hover:bg-white transition-all duration-200"
+            onClick={handleToggleFavorite}
           >
             <Heart 
               className={`h-3 w-3 sm:h-4 sm:w-4 ${isFavorite ? 'fill-red-500 text-red-500' : 'text-gray-600'}`} 

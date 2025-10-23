@@ -22,56 +22,77 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
 
-  // Check if user is admin based on role
-  const isAdmin = user?.role === 'admin' || user?.email === 'abdu@manacquisition.com'
+  // Check if user is admin based on role only
+  const isAdmin = user?.role === 'admin'
 
   // Function to fetch user profile and role from database
   const fetchUserProfile = async (userId: string) => {
     try {
-      const { data, error } = await supabase
+      // First try to find by user_id
+      let { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('user_id', userId)
         .single();
 
+      // If not found by user_id, try to find by id (for admin accounts)
+      if (error && error.code === 'PGRST116') {
+        const { data: dataById, error: errorById } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .single();
+        
+        data = dataById;
+        error = errorById;
+      }
+
       if (error) {
-        console.error('Error fetching user profile:', error);
         return null;
       }
 
       return data;
     } catch (error) {
-      console.error('Error fetching user profile:', error);
       return null;
     }
   };
 
   useEffect(() => {
+    let mounted = true;
+    
     // Get initial session
     const getInitialSession = async () => {
       try {
         const { data: { session }, error } = await supabase.auth.getSession()
+        if (!mounted) return;
+        
         if (error) {
-          console.error('Error getting session:', error)
           // Clear any invalid session data
           await supabase.auth.signOut()
+          setSession(null)
+          setUser(null)
         } else {
           setSession(session)
           if (session?.user) {
             const profile = await fetchUserProfile(session.user.id)
-            setUser({ ...session.user, role: profile?.role || 'customer' })
+            if (mounted) {
+              setUser({ ...session.user, role: profile?.role || 'customer' })
+            }
           } else {
             setUser(null)
           }
         }
       } catch (error) {
-        console.error('Session initialization error:', error)
-        // Clear any corrupted session data
-        await supabase.auth.signOut()
-        setSession(null)
-        setUser(null)
+        if (mounted) {
+          // Clear any corrupted session data
+          await supabase.auth.signOut()
+          setSession(null)
+          setUser(null)
+        }
       }
-      setLoading(false)
+      if (mounted) {
+        setLoading(false)
+      }
     }
 
     getInitialSession()
@@ -79,11 +100,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth state changed:', event, session)
+        if (!mounted) return;
         
         // Handle token refresh errors
         if (event === 'TOKEN_REFRESHED' && !session) {
-          console.log('Token refresh failed, signing out')
           await supabase.auth.signOut()
           setSession(null)
           setUser(null)
@@ -95,7 +115,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         if (session?.user) {
           const profile = await fetchUserProfile(session.user.id)
-          setUser({ ...session.user, role: profile?.role || 'customer' })
+          if (mounted) {
+            setUser({ ...session.user, role: profile?.role || 'customer' })
+          }
           
           // Create user profile if signing up (only if it doesn't exist)
           if (event === 'SIGNED_UP' as any) {
@@ -116,14 +138,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
           }
         } else {
-          setUser(null)
+          if (mounted) {
+            setUser(null)
+          }
         }
         
-        setLoading(false)
+        if (mounted) {
+          setLoading(false)
+        }
       }
     )
 
-    return () => subscription.unsubscribe()
+    return () => {
+      mounted = false;
+      subscription.unsubscribe()
+    }
   }, [])
 
   const signIn = async (email: string, password: string) => {

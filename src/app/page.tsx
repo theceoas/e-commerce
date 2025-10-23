@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect, Suspense, lazy } from "react"
+import { useState, useEffect } from "react"
+import dynamic from 'next/dynamic'
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -17,18 +18,37 @@ import {
   Facebook,
   Plus,
   User,
+  Search,
 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import Link from "next/link"
 import Image from "next/image"
 import { ProductGridSkeleton } from "@/components/product-skeleton"
 import { BrandGridSkeleton } from "@/components/brand-skeleton"
-import { useBrands, useFeaturedProducts } from "@/hooks/useSupabaseCache"
+import { useBrands, useFeaturedProducts, supabaseCache } from "@/hooks/useSupabaseCache"
+import { useNavigationCache } from "@/hooks/useNavigationCache"
+import { DevImageSpeed } from "@/components/dev-image-speed"
 
 // Lazy load the ProductModal component
-const ProductModal = lazy(() => import("@/components/product-modal").then(module => ({ default: module.ProductModal })))
+const ProductModal = dynamic(
+  () => import("@/components/product-modal"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+      </div>
+    )
+  }
+)
 
 import { useAuth } from "@/contexts/AuthContext"
+
+// Utility function for generating section IDs
+const getSectionId = (brandName: string) => {
+  const lowerName = brandName.toLowerCase().replace(/\s+/g, '')
+  return lowerName.replace(/[^a-z0-9]/g, '')
+}
 
 interface Brand {
   id: string
@@ -95,7 +115,7 @@ const frames = [
   },
   {
     id: "others",
-    title: "Others",
+    title: "FavoriteThings",
     component: "OthersFrame",
   },
   {
@@ -140,6 +160,17 @@ function FixedIdentityPanel({ onAccountClick, user }: { onAccountClick: () => vo
 
           {/* Quick Actions */}
           <div className="flex flex-col space-y-4 mt-auto">
+            {/* Search Button */}
+            <motion.button
+              onClick={() => window.location.href = '/search'}
+              className="w-12 h-12 bg-black rounded-full flex items-center justify-center hover:bg-black/80 transition-all duration-300"
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              title="Search Products"
+            >
+              <Search className="w-5 h-5 text-yellow-400" />
+            </motion.button>
+            
             {/* Account Button */}
             <motion.button
               onClick={onAccountClick}
@@ -180,6 +211,11 @@ function FixedIdentityPanel({ onAccountClick, user }: { onAccountClick: () => vo
           <div className="text-black font-bold text-lg">Favorite Things</div>
 
           <div className="flex space-x-2">
+            <Link href="/search">
+              <Button size="sm" variant="ghost" className="text-black hover:bg-black/10 p-2">
+                <Search className="w-4 h-4" />
+              </Button>
+            </Link>
             <Button 
               size="sm" 
               variant="ghost" 
@@ -243,10 +279,25 @@ function WelcomeFrame({ brands, loading }: { brands: Brand[]; loading?: boolean 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.5, duration: 0.8 }}
-            className="text-lg sm:text-xl text-gray-600 mb-8 sm:mb-12 max-w-2xl mx-auto leading-relaxed px-4"
+            className="text-lg sm:text-xl text-gray-600 mb-6 sm:mb-8 max-w-2xl mx-auto leading-relaxed px-4"
           >
             Three distinct brands. One unified vision of contemporary Nigerian fashion.
           </motion.p>
+
+          {/* Search Button - Visible on all screen sizes */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.7, duration: 0.8 }}
+            className="mb-8 sm:mb-12"
+          >
+            <Link href="/search">
+              <Button className="bg-yellow-400 hover:bg-yellow-500 text-black font-semibold px-6 py-3 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105">
+                <Search className="w-5 h-5 mr-2" />
+                Search Products
+              </Button>
+            </Link>
+          </motion.div>
 
           <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -265,22 +316,15 @@ function WelcomeFrame({ brands, loading }: { brands: Brand[]; loading?: boolean 
               ]
               
               const scrollToSection = (sectionId: string) => {
-                const element = document.getElementById(sectionId)
-                if (element) {
-                  element.scrollIntoView({ behavior: 'smooth' })
-                }
+                requestAnimationFrame(() => {
+                  const element = document.getElementById(sectionId)
+                  if (element) {
+                    element.scrollIntoView({ behavior: 'smooth' })
+                  }
+                })
               }
 
-              // Map brand names to section IDs
-              const getSectionId = (brandName: string) => {
-                const lowerName = brandName.toLowerCase()
-                
-                if (lowerName === 'kiowa') return 'kiowa'
-                if (lowerName.includes('omoge') || lowerName.includes('ify')) return 'omege'
-                if (lowerName.includes('minime') || lowerName === 'minime') return 'minime'
-                
-                return lowerName
-              }
+              // Map brand names to section IDs dynamically
               
               return (
                 <motion.div 
@@ -297,6 +341,8 @@ function WelcomeFrame({ brands, loading }: { brands: Brand[]; loading?: boolean 
                     height={256}
                     className="w-full h-48 sm:h-56 md:h-64 object-cover rounded-lg shadow-lg group-hover:shadow-2xl transition-all duration-500"
                     sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, 33vw"
+                    priority={index === 0}
+                    fetchPriority={index === 0 ? "high" : "auto"}
                   />
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 rounded-lg transition-all duration-300 flex items-center justify-center">
                     <span className="text-white font-semibold text-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300">
@@ -322,9 +368,14 @@ function WelcomeFrame({ brands, loading }: { brands: Brand[]; loading?: boolean 
               size="lg"
               className="bg-black text-white hover:bg-yellow-400 hover:text-black transition-all duration-300 px-6 sm:px-8 py-3 sm:py-4 text-base sm:text-lg rounded-full"
               onClick={() => {
-                const element = document.getElementById('kiowa')
-                if (element) {
-                  element.scrollIntoView({ behavior: 'smooth' })
+                // Find the first brand section to scroll to
+                const firstBrand = brands.find(brand => brand.is_active)
+                if (firstBrand) {
+                  const sectionId = getSectionId(firstBrand.name)
+                  const element = document.getElementById(sectionId)
+                  if (element) {
+                    element.scrollIntoView({ behavior: 'smooth' })
+                  }
                 }
               }}
             >
@@ -346,22 +397,13 @@ function WelcomeFrame({ brands, loading }: { brands: Brand[]; loading?: boolean 
 }
 
 function KiowaFrame({ brands, onProductClick }: { brands: Brand[]; onProductClick: (product: any) => void }) {
-  const kiowaData = brands.find(brand => brand.name.toLowerCase() === 'kiowa')
+  // Find brand dynamically by checking if it matches any of the expected patterns
+  const kiowaData = brands.find(brand => {
+    const name = brand.name.toLowerCase()
+    return name === 'kiowa' || name.includes('kiowa')
+  })
   const { data: featuredProductsData, loading } = useFeaturedProducts(kiowaData?.id || '')
   const featuredProducts = featuredProductsData || []
-
-  // Fallback hardcoded products
-  const fallbackProducts = [
-    {
-      name: "Structured Blazer",
-      price: "₦45,000",
-      image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?w=300&h=400&fit=crop&crop=center",
-    },
-    { name: "Statement Dress", price: "₦38,000", image: "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=300&h=400&fit=crop&crop=center" },
-    { name: "Designer Bag", price: "₦32,000", image: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=300&h=400&fit=crop&crop=center" },
-  ]
-
-  const displayProducts = featuredProducts.length > 0 ? featuredProducts : fallbackProducts
 
   return (
     <div className="min-h-screen flex items-center bg-gradient-to-br from-amber-50 to-orange-50 relative py-12 sm:py-20">
@@ -470,46 +512,7 @@ function KiowaFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
                 </motion.div>
               ))}
             </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-              {fallbackProducts.map((product, index) => (
-                <motion.div
-                  key={product.name}
-                  initial={{ opacity: 0, y: 30 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: 0.7 + index * 0.1 }}
-                  className="group"
-                >
-                  <div 
-                    className="cursor-pointer transition-all duration-300 hover:scale-105"
-                    onClick={() => {
-                      onProductClick({
-                        id: product.name.toLowerCase().replace(/\s+/g, '-'),
-                        name: product.name,
-                        price: parseInt(product.price.replace(/[₦,]/g, '')),
-                        thumbnail_url: product.image,
-                        description: `Beautiful ${product.name} from Kiowa collection`,
-                        in_stock: true,
-                        additional_images: []
-                      })
-                    }}
-                  >
-                    <div className="relative overflow-hidden rounded-lg">
-                      <img
-                        src={product.image}
-                        alt={product.name}
-                        className="w-full aspect-[9/16] object-cover transition-transform duration-500"
-                      />
-                    </div>
-                    <div className="mt-3 sm:mt-4">
-                      <h3 className="font-semibold text-black mb-2 text-sm sm:text-base line-clamp-2">{product.name}</h3>
-                      <p className="text-yellow-600 font-bold text-base sm:text-lg">{product.price}</p>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          )}
+          ) : null}
         </motion.div>
       </div>
     </div>
@@ -517,53 +520,13 @@ function KiowaFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
 }
 
 function OmegeFrame({ brands, onProductClick }: { brands: Brand[]; onProductClick: (product: any) => void }) {
-  const [featuredProducts, setFeaturedProducts] = useState<Product[]>([])
-  const [loading, setLoading] = useState(true)
-  
-  const omegeData = brands.find(brand => 
-    brand.name.toLowerCase().includes('omogebyify') || 
-    brand.name.toLowerCase().includes('omoge')
-  )
-
-  useEffect(() => {
-    const fetchFeaturedProducts = async () => {
-      if (!omegeData) return
-      
-      try {
-        const { data, error } = await supabase
-          .from('products_with_discounts')
-          .select('*')
-          .eq('brand_id', omegeData.id)
-          .eq('featured', true)
-          .eq('in_stock', true)
-          .limit(3)
-          .order('created_at', { ascending: false })
-
-        if (error) throw error
-        setFeaturedProducts(data || [])
-      } catch (error) {
-        console.error('Error fetching featured products:', error)
-        setFeaturedProducts([])
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchFeaturedProducts()
-  }, [omegeData])
-
-  // Fallback hardcoded products
-  const fallbackProducts = [
-    { name: "Silk Blouse", price: "₦42,000", image: "https://images.unsplash.com/photo-1469334031218-e382a71b716b?w=300&h=400&fit=crop&crop=center" },
-    { name: "Midi Skirt", price: "₦35,000", image: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?w=300&h=400&fit=crop&crop=center" },
-    {
-      name: "Pearl Accessories",
-      price: "₦18,000",
-      image: "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=300&h=400&fit=crop&crop=center",
-    },
-  ]
-
-  const displayProducts = featuredProducts.length > 0 ? featuredProducts : fallbackProducts
+  // Find brand dynamically by checking multiple patterns
+  const omegeData = brands.find(brand => {
+    const name = brand.name.toLowerCase()
+    return name.includes('omoge') || name.includes('ify') || name === 'omogebyify'
+  })
+  const { data: featuredProductsData, loading } = useFeaturedProducts(omegeData?.id || '')
+  const featuredProducts = featuredProductsData || []
 
   return (
     <div className="min-h-screen flex items-center bg-gradient-to-br from-red-50 to-pink-50 relative py-12 sm:py-20">
@@ -626,7 +589,7 @@ function OmegeFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
           <h3 className="text-xl sm:text-2xl font-bold text-black mb-6 sm:mb-8 text-center">Featured Pieces</h3>
           {loading ? (
             <ProductGridSkeleton count={4} />
-          ) : featuredProducts.length > 0 ? (
+          ) : featuredProducts.length > 0 && (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
               {featuredProducts.map((product, index) => (
                 <motion.div
@@ -673,46 +636,6 @@ function OmegeFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
                 </motion.div>
               ))}
             </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-              {fallbackProducts.map((product, index) => (
-                <motion.div
-                  key={product.name}
-                  initial={{ opacity: 0, y: 30 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: 0.7 + index * 0.1 }}
-                  className="group"
-                >
-                  <div 
-                    className="cursor-pointer transition-all duration-300 hover:scale-105"
-                    onClick={() => {
-                      onProductClick({
-                        id: product.name.toLowerCase().replace(/\s+/g, '-'),
-                        name: product.name,
-                        price: parseInt(product.price.replace(/[₦,]/g, '')),
-                        thumbnail_url: product.image,
-                        description: `Elegant ${product.name} from OmogeByIfy collection`,
-                        in_stock: true,
-                        additional_images: []
-                      })
-                    }}
-                  >
-                    <div className="relative overflow-hidden rounded-lg">
-                       <img
-                         src={product.image}
-                         alt={product.name}
-                         className="w-full aspect-[3/4] sm:aspect-[9/16] object-cover transition-transform duration-500"
-                         style={{ aspectRatio: '9/16' }}
-                       />
-                     </div>
-                    <div className="mt-4">
-                      <h3 className="font-semibold text-black mb-2 text-sm">{product.name}</h3>
-                      <p className="text-red-600 font-bold text-lg">{product.price}</p>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
           )}
         </motion.div>
       </div>
@@ -721,48 +644,13 @@ function OmegeFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
 }
 
 function MiniMeFrame({ brands, onProductClick }: { brands: Brand[]; onProductClick: (product: any) => void }) {
-  const [featuredProducts, setFeaturedProducts] = useState<Product[]>([])
-  const [loading, setLoading] = useState(true)
-  
-  const miniMeData = brands.find(brand => 
-    brand.name.toLowerCase().includes('minime')
-  )
-
-  useEffect(() => {
-    const fetchFeaturedProducts = async () => {
-      if (!miniMeData) return
-      
-      try {
-        const { data, error } = await supabase
-          .from('products_with_discounts')
-          .select('*')
-          .eq('brand_id', miniMeData.id)
-          .eq('featured', true)
-          .eq('in_stock', true)
-          .limit(3)
-          .order('created_at', { ascending: false })
-
-        if (error) throw error
-        setFeaturedProducts(data || [])
-      } catch (error) {
-        console.error('Error fetching featured products:', error)
-        setFeaturedProducts([])
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchFeaturedProducts()
-  }, [miniMeData])
-
-  // Fallback hardcoded products
-  const fallbackProducts = [
-    { name: "Kids Dress", price: "₦25,000", image: "https://images.unsplash.com/photo-1518831959646-742c3a14ebf7?w=300&h=400&fit=crop&crop=center" },
-    { name: "Baby Romper", price: "₦18,000", image: "https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?w=300&h=400&fit=crop&crop=center" },
-    { name: "Toddler Set", price: "₦32,000", image: "https://images.unsplash.com/photo-1503944583220-79d8926ad5e2?w=300&h=400&fit=crop&crop=center" },
-  ]
-
-  const displayProducts = featuredProducts.length > 0 ? featuredProducts : fallbackProducts
+  // Find brand dynamically
+  const miniMeData = brands.find(brand => {
+    const name = brand.name.toLowerCase()
+    return name.includes('minime') || name === 'minime' || name.includes('mini me')
+  })
+  const { data: featuredProductsData, loading } = useFeaturedProducts(miniMeData?.id || '')
+  const featuredProducts = featuredProductsData || []
 
   return (
     <div className="min-h-screen flex items-center bg-gradient-to-br from-yellow-50 to-orange-50 relative py-12 sm:py-20">
@@ -801,10 +689,13 @@ function MiniMeFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
             className="relative"
           >
             {miniMeData?.image_url ? (
-              <img
+              <Image
                 src={miniMeData.image_url}
                 alt={`${miniMeData.name} Hero`}
+                width={800}
+                height={500}
                 className="w-full h-64 sm:h-80 lg:h-96 xl:h-[500px] object-cover rounded-2xl shadow-2xl"
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 80vw, 800px"
               />
             ) : (
               <div className="w-full h-64 sm:h-80 lg:h-96 xl:h-[500px] bg-gray-200 rounded-2xl shadow-2xl animate-pulse"></div>
@@ -822,7 +713,7 @@ function MiniMeFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
           <h3 className="text-xl sm:text-2xl font-bold text-black mb-6 sm:mb-8 text-center">Featured Pieces</h3>
           {loading ? (
             <ProductGridSkeleton count={4} />
-          ) : featuredProducts.length > 0 ? (
+          ) : featuredProducts.length > 0 && (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
               {featuredProducts.map((product, index) => (
                 <motion.div
@@ -868,45 +759,6 @@ function MiniMeFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
                 </motion.div>
               ))}
             </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-              {fallbackProducts.map((product, index) => (
-                <motion.div
-                  key={product.name}
-                  initial={{ opacity: 0, y: 30 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: 0.7 + index * 0.1 }}
-                >
-                  <div 
-                    className="group cursor-pointer transition-all duration-300 hover:scale-105"
-                    onClick={() => {
-                      onProductClick({
-                        id: product.name.toLowerCase().replace(/\s+/g, '-'),
-                        name: product.name,
-                        price: parseInt(product.price.replace(/[₦,]/g, '')),
-                        thumbnail_url: product.image,
-                        description: `Adorable ${product.name} from MiniMe collection`,
-                        in_stock: true,
-                        additional_images: []
-                      })
-                    }}
-                  >
-                    <div className="relative overflow-hidden rounded-lg">
-                       <img
-                         src={product.image}
-                         alt={product.name}
-                         className="w-full aspect-[9/16] object-cover transition-transform duration-500"
-                         style={{ aspectRatio: '9/16' }}
-                       />
-                     </div>
-                    <div className="mt-4">
-                      <h3 className="font-semibold text-black mb-2 text-sm">{product.name}</h3>
-                      <p className="text-green-600 font-bold text-lg">{product.price}</p>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
           )}
         </motion.div>
       </div>
@@ -918,8 +770,9 @@ function OthersFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   
-  const othersData = brands.find(brand => 
-    brand.name.toLowerCase().includes('others')
+  // Use the first brand passed in (for dynamic rendering) - this will be the FavoriteThings brand
+  const othersData = brands.length === 1 ? brands[0] : brands.find(brand => 
+    brand.name.toLowerCase().includes('favoritethings') || brand.name.toLowerCase().includes('favorite')
   )
 
   useEffect(() => {
@@ -949,15 +802,6 @@ function OthersFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
     fetchFeaturedProducts()
   }, [othersData])
 
-  // Fallback hardcoded products
-  const fallbackProducts = [
-    { name: "Statement Necklace", price: "₦15,000", image: "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=300&h=400&fit=crop&crop=center" },
-    { name: "Designer Bag", price: "₦45,000", image: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=300&h=400&fit=crop&crop=center" },
-    { name: "Silk Scarf", price: "₦12,000", image: "https://images.unsplash.com/photo-1584464491033-06628f3a6b7b?w=300&h=400&fit=crop&crop=center" },
-  ]
-
-  const displayProducts = featuredProducts.length > 0 ? featuredProducts : fallbackProducts
-
   return (
     <div className="min-h-screen flex items-center bg-gradient-to-br from-purple-50 to-indigo-50 relative py-12 sm:py-20">
       <div className="container mx-auto px-4 sm:px-6">
@@ -968,6 +812,7 @@ function OthersFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
             transition={{ duration: 1 }}
             className="order-2 lg:order-1 relative"
           >
+
             {othersData?.image_url ? (
               <img
                 src={othersData.image_url}
@@ -1062,46 +907,7 @@ function OthersFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
                 </motion.div>
               ))}
             </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-              {fallbackProducts.map((product, index) => (
-                <motion.div
-                  key={product.name}
-                  initial={{ opacity: 0, y: 30 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: 0.7 + index * 0.1 }}
-                  className="group"
-                >
-                  <div 
-                    className="cursor-pointer transition-all duration-300 hover:scale-105"
-                    onClick={() => {
-                      onProductClick({
-                        id: product.name.toLowerCase().replace(/\s+/g, '-'),
-                        name: product.name,
-                        price: parseInt(product.price.replace(/[₦,]/g, '')),
-                        thumbnail_url: product.image,
-                        description: `Unique ${product.name} from Others collection`,
-                        in_stock: true,
-                        additional_images: []
-                      })
-                    }}
-                  >
-                    <div className="relative overflow-hidden rounded-lg">
-                      <img
-                        src={product.image}
-                        alt={product.name}
-                        className="w-full aspect-[9/16] object-cover transition-transform duration-500"
-                      />
-                    </div>
-                    <div className="mt-3 sm:mt-4">
-                      <h3 className="font-semibold text-black mb-2 text-sm sm:text-base line-clamp-2">{product.name}</h3>
-                      <p className="text-purple-600 font-bold text-base sm:text-lg">{product.price}</p>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          )}
+          ) : null}
         </motion.div>
       </div>
     </div>
@@ -1172,6 +978,18 @@ export default function HomePage() {
   const [selectedProduct, setSelectedProduct] = useState<any>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
+  // Handle cache clearing on navigation
+  useNavigationCache()
+
+  // Prefetch ProductModal chunk to avoid runtime chunk load errors
+  useEffect(() => {
+    import("@/components/product-modal")
+  }, [])
+
+  useEffect(() => {
+    // Removed aggressive cache clearing to avoid unnecessary refetches after navigation
+  }, [])
+
   const handleProductClick = (product: any) => {
     setSelectedProduct(product)
     setIsModalOpen(true)
@@ -1194,6 +1012,39 @@ export default function HomePage() {
 
   return (
     <div className="relative min-h-screen scroll-smooth">
+      {/* Mobile Header */}
+      <header className="lg:hidden sticky top-0 z-50 w-full bg-yellow-400 shadow-lg">
+        <div className="flex items-center justify-between px-4 py-3">
+          {/* Logo */}
+          <div className="flex items-center space-x-2">
+            <div className="w-8 h-8 bg-black rounded-full flex items-center justify-center">
+              <span className="text-yellow-400 font-bold text-sm">FT</span>
+            </div>
+            <span className="text-black font-bold text-lg">Favorite Things</span>
+          </div>
+          
+          {/* Actions */}
+          <div className="flex items-center space-x-2">
+            {/* Search Button */}
+            <Link href="/search">
+              <Button size="sm" className="bg-black hover:bg-gray-800 text-yellow-400 p-2">
+                <Search className="w-4 h-4" />
+              </Button>
+            </Link>
+            
+            {/* Login/Account Button */}
+            <Button 
+              size="sm" 
+              onClick={handleAccountClick}
+              className="bg-black hover:bg-gray-800 text-yellow-400 px-3 py-2"
+            >
+              <User className="w-4 h-4 mr-1" />
+              {user ? 'Account' : 'Login'}
+            </Button>
+          </div>
+        </div>
+      </header>
+
       <FixedIdentityPanel onAccountClick={handleAccountClick} user={user} />
 
       {/* Main Content Area */}
@@ -1203,36 +1054,39 @@ export default function HomePage() {
           <WelcomeFrame brands={brands} loading={brandsLoading} />
         </section>
 
-        {/* Kiowa Section */}
-        {!brandsLoading && brands.some(brand => brand.name.toLowerCase() === 'kiowa') && (
-          <section id="kiowa" className="scroll-mt-20">
-            <KiowaFrame brands={brands} onProductClick={handleProductClick} />
-          </section>
-        )}
-
-        {/* Omege Section */}
-        {!brandsLoading && brands.some(brand => 
-          brand.name.toLowerCase().includes('omogebyify') || 
-          brand.name.toLowerCase().includes('omoge')
-        ) && (
-          <section id="omege" className="scroll-mt-20">
-            <OmegeFrame brands={brands} onProductClick={handleProductClick} />
-          </section>
-        )}
-
-        {/* MiniMe Section */}
-        {!brandsLoading && brands.some(brand => brand.name.toLowerCase().includes('minime')) && (
-          <section id="minime" className="scroll-mt-20">
-            <MiniMeFrame brands={brands} onProductClick={handleProductClick} />
-          </section>
-        )}
-
-        {/* Others Section */}
-        {!brandsLoading && (
-          <section id="others" className="scroll-mt-20">
-            <OthersFrame brands={brands} onProductClick={handleProductClick} />
-          </section>
-        )}
+        {/* Brand Sections - Dynamic rendering */}
+        {!brandsLoading && brands.filter(brand => brand.is_active).map((brand) => {
+          const sectionId = getSectionId(brand.name)
+          const brandName = brand.name.toLowerCase()
+          
+          // Determine which frame component to use based on brand characteristics
+          if (brandName.includes('kiowa') || brandName === 'kiowa') {
+            return (
+              <section key={brand.id} id={sectionId} className="scroll-mt-20">
+                <KiowaFrame brands={brands} onProductClick={handleProductClick} />
+              </section>
+            )
+          } else if (brandName.includes('omoge') || brandName.includes('ify')) {
+            return (
+              <section key={brand.id} id={sectionId} className="scroll-mt-20">
+                <OmegeFrame brands={brands} onProductClick={handleProductClick} />
+              </section>
+            )
+          } else if (brandName.includes('minime') || brandName.includes('mini me')) {
+            return (
+              <section key={brand.id} id={sectionId} className="scroll-mt-20">
+                <MiniMeFrame brands={brands} onProductClick={handleProductClick} />
+              </section>
+            )
+          } else {
+            // For all other brands (including FavoriteThings), use OthersFrame but pass the specific brand
+            return (
+              <section key={brand.id} id={sectionId} className="scroll-mt-20">
+                <OthersFrame brands={[brand]} onProductClick={handleProductClick} />
+              </section>
+            )
+          }
+        })}
 
         {/* Footer Section */}
         <section id="footer" className="scroll-mt-20">
@@ -1241,20 +1095,18 @@ export default function HomePage() {
       </div>
 
       {/* Product Modal */}
-      <Suspense fallback={<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div></div>}>
-        <ProductModal
-          product={selectedProduct}
-          isOpen={isModalOpen}
-          onClose={() => {
-            setIsModalOpen(false)
-            setSelectedProduct(null)
-          }}
-          onAddToCart={(product) => {
-            // TODO: Implement add to cart functionality
-            console.log('Add to cart:', product.id)
-          }}
-        />
-      </Suspense>
+      <ProductModal
+        product={selectedProduct}
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false)
+          setSelectedProduct(null)
+        }}
+        onAddToCart={(product) => {
+          // TODO: Implement add to cart functionality
+          console.log('Add to cart:', product.id)
+        }}
+      />
 
 
     </div>

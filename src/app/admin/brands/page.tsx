@@ -24,6 +24,10 @@ import {
 import { supabase } from "@/lib/supabase"
 import { uploadBrandImage, deleteBrandImage } from "@/lib/storage"
 
+import { DevImageSpeed } from "@/components/dev-image-speed"
+
+import Image from "next/image"
+
 interface Brand {
   id: string
   name: string
@@ -47,7 +51,6 @@ export default function BrandsManagement() {
 
   useEffect(() => {
     if (!authLoading) {
-      console.log('Auth state:', { user: user?.email, isAdmin, userId: user?.id })
       if (!user || !isAdmin) {
         router.push("/admin/login")
         return
@@ -78,7 +81,9 @@ export default function BrandsManagement() {
   }
 
   const handleSave = async () => {
-    if (!editingId || !editForm) return
+    if (!editingId || !editForm) {
+      return
+    }
 
     try {
       setUploadingImage(true)
@@ -99,28 +104,40 @@ export default function BrandsManagement() {
         }
       }
 
-      const { error } = await supabase
+      const updateData = {
+        name: editForm.name?.trim() || '',
+        image_url: imageUrl || '',
+        description: editForm.description?.trim() || '',
+        is_active: editForm.is_active ?? true,
+        updated_at: new Date().toISOString()
+      }
+
+      console.log('Updating brand with:', updateData)
+
+      const { data, error } = await supabase
         .from('brands')
-        .update({
-          name: editForm.name,
-          image_url: imageUrl,
-          description: editForm.description,
-          is_active: editForm.is_active
-        })
+        .update(updateData)
         .eq('id', editingId)
+        .select()
 
       if (error) {
-        console.error('Supabase error details:', error)
         throw error
       }
 
-      await loadBrands()
+      // Update local state
+      setBrands(brands.map(brand => 
+        brand.id === editingId ? { ...brand, ...updateData } : brand
+      ))
+      
       setEditingId(null)
       setEditForm({})
       setSelectedImageFile(null)
+      
+      // Show success message
+      alert('Brand updated successfully!')
     } catch (error) {
       console.error('Error updating brand:', error)
-      alert(`Error updating brand: ${JSON.stringify(error)}`)
+      alert(`Error updating brand: ${error instanceof Error ? error.message : JSON.stringify(error)}`)
     } finally {
       setUploadingImage(false)
     }
@@ -207,6 +224,10 @@ export default function BrandsManagement() {
 
         {/* Main Content */}
         <div className="container mx-auto px-6 py-8">
+          {/* Dev-only image speed widget */}
+          {process.env.NODE_ENV !== 'production' && (
+            <DevImageSpeed title="Admin Brands Image Speed" />
+          )}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {brands.map((brand, index) => (
               <motion.div
@@ -217,10 +238,13 @@ export default function BrandsManagement() {
               >
                 <Card className="bg-white/90 shadow-lg border-0 overflow-hidden">
                   <div className="relative">
-                    <img
+                    <Image
                       src={editingId === brand.id ? editForm.image_url || brand.image_url : brand.image_url}
                       alt={brand.name}
+                      width={600}
+                      height={300}
                       className="w-full h-48 object-cover"
+                      sizes="(max-width: 1024px) 100vw, 600px"
                     />
                     <div className="absolute top-2 right-2 flex gap-2">
                       <Button

@@ -1,8 +1,10 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense, useMemo } from "react"
+import dynamic from 'next/dynamic'
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
+import { useNavigationCache } from "@/hooks/useNavigationCache"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -24,10 +26,16 @@ import {
 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 
+// Lazy load heavy components
+const ProductModal = dynamic(
+  () => import("@/components/product-modal"),
+  { ssr: false }
+)
+
 interface Product {
   id: string
   name: string
-  description: string
+  description?: string
   price: number
   thumbnail_url: string
   brand_id?: string
@@ -37,13 +45,67 @@ interface Product {
 
 interface Order {
   id: string
-  user_id: string | null
-  guest_email: string | null
+  user_id?: string | null
+  guest_email?: string | null
   total_amount: number
   status: string
   payment_status: string
   order_number: string
   created_at: string
+}
+
+// Loading skeleton components
+function StatsCardSkeleton() {
+  return (
+    <Card className="bg-white/90 shadow-lg border-0 animate-pulse">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <div className="h-4 bg-gray-200 rounded w-24"></div>
+        <div className="h-4 w-4 bg-gray-200 rounded"></div>
+      </CardHeader>
+      <CardContent>
+        <div className="h-8 bg-gray-200 rounded w-16 mb-2"></div>
+        <div className="h-3 bg-gray-200 rounded w-20"></div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="container mx-auto px-4 py-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <StatsCardSkeleton key={i} />
+        ))}
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <Card className="bg-white/90 shadow-lg border-0 animate-pulse">
+          <CardHeader>
+            <div className="h-6 bg-gray-200 rounded w-32"></div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="h-16 bg-gray-200 rounded"></div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-white/90 shadow-lg border-0 animate-pulse">
+          <CardHeader>
+            <div className="h-6 bg-gray-200 rounded w-32"></div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="h-16 bg-gray-200 rounded"></div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )
 }
 
 export default function AdminDashboard() {
@@ -59,6 +121,20 @@ export default function AdminDashboard() {
   const { user, isAdmin, loading, signOut } = useAuth()
   const router = useRouter()
 
+  // Handle cache clearing on navigation
+  useNavigationCache()
+
+  // Memoize expensive calculations
+  const recentProducts = useMemo(() => 
+    products.slice(0, 5), 
+    [products]
+  )
+
+  const recentOrders = useMemo(() => 
+    orders.slice(0, 5), 
+    [orders]
+  )
+
   useEffect(() => {
     if (!loading && user && isAdmin) {
       loadDashboardData()
@@ -67,51 +143,72 @@ export default function AdminDashboard() {
     }
   }, [user, isAdmin, loading])
 
-
-
   const loadDashboardData = async () => {
     try {
-      // Load products
-      const { data: productsData, error: productsError } = await supabase
-        .from('products')
-        .select('*')
-        .order('created_at', { ascending: false })
+      // Optimize queries with specific field selection and limits
+      const [productsResult, ordersResult, statsResult] = await Promise.all([
+        supabase
+          .from('products')
+          .select('id, name, description, price, thumbnail_url, in_stock, created_at, brand_id')
+          .order('created_at', { ascending: false })
+          .limit(5), // Only get what we need for recent products
+        supabase
+          .from('orders')
+          .select('id, user_id, guest_email, total_amount, status, payment_status, order_number, created_at')
+          .order('created_at', { ascending: false })
+          .limit(5), // Only get what we need for recent orders
+        // Separate optimized query for stats using aggregation
+        supabase.rpc('get_dashboard_stats') // We'll create this RPC function
+          .then(result => {
+            if (result.error) {
+              // Fallback to individual queries if RPC doesn't exist
+              return Promise.all([
+                supabase.from('products').select('id, in_stock'),
+                supabase.from('orders').select('total_amount')
+              ]).then(([productsCount, ordersRevenue]) => ({
+                data: {
+                  total_products: productsCount.data?.length || 0,
+                  active_products: productsCount.data?.filter(p => p.in_stock).length || 0,
+                  total_orders: ordersRevenue.data?.length || 0,
+                  total_revenue: ordersRevenue.data?.reduce((sum, order) => sum + order.total_amount, 0) || 0
+                },
+                error: null
+              }))
+            }
+            return result
+          })
+      ])
 
-      if (productsError) throw productsError
+      if (productsResult.error) throw productsResult.error
+      if (ordersResult.error) throw ordersResult.error
+      if (statsResult.error) throw statsResult.error
 
-      // Load recent orders for display
-      const { data: ordersData, error: ordersError } = await supabase
-        .from('orders')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(10)
+      const productsData = productsResult.data || []
+      const ordersData = ordersResult.data || []
+      const statsData = statsResult.data
 
-      if (ordersError) throw ordersError
+      setProducts(productsData)
+      setOrders(ordersData)
 
-      // Get all orders for accurate stats
-      const { data: allOrdersData, error: allOrdersError } = await supabase
-        .from('orders')
-        .select('total_amount')
-
-      if (allOrdersError) throw allOrdersError
-
-      setProducts(productsData || [])
-      setOrders(ordersData || [])
-
-      // Calculate stats from real data
-      const totalProducts = productsData?.length || 0
-      const activeProducts = productsData?.filter(p => p.in_stock).length || 0
-      const totalOrders = allOrdersData?.length || 0
-      const totalRevenue = allOrdersData?.reduce((sum, order) => sum + order.total_amount, 0) || 0
-
-      setStats({
-        totalProducts,
-        totalOrders,
-        totalRevenue,
-        activeProducts
-      })
+      // Use stats from optimized query or fallback calculation
+      if (statsData && typeof statsData === 'object' && 'total_products' in statsData) {
+        setStats({
+          totalProducts: statsData.total_products,
+          totalOrders: statsData.total_orders,
+          totalRevenue: statsData.total_revenue,
+          activeProducts: statsData.active_products
+        })
+      } else {
+        // Fallback stats calculation using the fetched data
+        setStats({
+          totalProducts: productsData.length,
+          totalOrders: ordersData.length,
+          totalRevenue: ordersData.reduce((sum, order) => sum + order.total_amount, 0),
+          activeProducts: productsData.filter(p => p.in_stock).length
+        })
+      }
     } catch (error) {
-      console.error('Error loading dashboard data:', error)
+      // Removed console.error for performance
     } finally {
       setDashboardLoading(false)
     }
@@ -126,14 +223,36 @@ export default function AdminDashboard() {
     window.open("/", "_blank")
   }
 
-
-
   if (dashboardLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-500 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading dashboard...</p>
+      <div className="min-h-screen">
+        <div className="w-full">
+          {/* Header */}
+          <header className="border-b border-gray-200 bg-white/80 backdrop-blur-sm sticky top-0 z-40 shadow-sm">
+            <div className="container mx-auto px-4 py-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                  <h1 className="text-xl sm:text-2xl font-bold text-black">Admin Dashboard</h1>
+                  <p className="text-sm sm:text-base text-gray-600">Manage your fashion e-commerce store</p>
+                </div>
+                <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+                  <Button variant="outline" onClick={handleViewSite} className="border-gray-200 hover:bg-gray-50 flex-1 sm:flex-none text-xs sm:text-sm">
+                    <Eye className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                    <span className="hidden sm:inline">View Site</span>
+                    <span className="sm:hidden">View</span>
+                  </Button>
+                  <Button onClick={handleLogout} className="bg-yellow-500 hover:bg-yellow-600 text-black flex-1 sm:flex-none text-xs sm:text-sm">
+                    <LogOut className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                    <span className="hidden sm:inline">Logout</span>
+                    <span className="sm:hidden">Exit</span>
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </header>
+          <Suspense fallback={<DashboardSkeleton />}>
+            <DashboardSkeleton />
+          </Suspense>
         </div>
       </div>
     )

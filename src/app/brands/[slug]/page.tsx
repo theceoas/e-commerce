@@ -1,6 +1,7 @@
-"use client"
+'use client'
 
-import { useState, useEffect, Suspense, lazy } from "react"
+import { useState, useEffect } from "react"
+import dynamic from 'next/dynamic'
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -10,9 +11,20 @@ import { supabase } from "@/lib/supabase"
 import Link from "next/link"
 import Image from "next/image"
 import { useParams, useSearchParams } from "next/navigation"
+import { useNavigationCache } from "@/hooks/useNavigationCache"
 
 // Lazy load components for better performance
-const ProductModal = lazy(() => import("@/components/product-modal").then(module => ({ default: module.ProductModal })))
+const ProductModal = dynamic(
+  () => import("@/components/product-modal"),
+  { 
+    ssr: false,
+    loading: () => (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+      </div>
+    )
+  }
+)
 
 interface Brand {
   id: string
@@ -45,6 +57,15 @@ export default function BrandPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+
+  // Handle cache clearing on navigation
+  useNavigationCache()
+
+  // Prefetch ProductModal chunk to avoid runtime load errors
+  useEffect(() => {
+    const prefetch = () => import("@/components/product-modal")
+    prefetch().catch(() => {})
+  }, [])
 
   useEffect(() => {
     fetchBrandAndProducts()
@@ -106,41 +127,58 @@ export default function BrandPage() {
 
   const getBrandColors = (brandName: string) => {
     const name = brandName.toLowerCase()
-    if (name.includes('omegebyify') || name.includes('omege')) {
-      return {
+    
+    // Create a simple hash from the brand name to ensure consistent colors
+    let hash = 0
+    for (let i = 0; i < name.length; i++) {
+      const char = name.charCodeAt(i)
+      hash = ((hash << 5) - hash) + char
+      hash = hash & hash // Convert to 32-bit integer
+    }
+    
+    // Define color schemes
+    const colorSchemes = [
+      {
         gradient: 'from-red-50 to-pink-50',
         badge: 'bg-red-400',
         button: 'bg-red-400 hover:bg-red-500',
         accent: 'text-red-500'
-      }
-    } else if (name.includes('kiowa')) {
-      return {
+      },
+      {
         gradient: 'from-blue-50 to-indigo-50',
         badge: 'bg-blue-400',
         button: 'bg-blue-400 hover:bg-blue-500',
         accent: 'text-blue-500'
-      }
-    } else if (name.includes('minime')) {
-      return {
+      },
+      {
         gradient: 'from-purple-50 to-pink-50',
         badge: 'bg-purple-400',
         button: 'bg-purple-400 hover:bg-purple-500',
         accent: 'text-purple-500'
-      }
-    } else if (name.includes('ify')) {
-      return {
+      },
+      {
         gradient: 'from-green-50 to-emerald-50',
         badge: 'bg-green-400',
         button: 'bg-green-400 hover:bg-green-500',
         accent: 'text-green-500'
+      },
+      {
+        gradient: 'from-yellow-50 to-orange-50',
+        badge: 'bg-yellow-400',
+        button: 'bg-yellow-400 hover:bg-yellow-500',
+        accent: 'text-yellow-600'
+      },
+      {
+        gradient: 'from-teal-50 to-cyan-50',
+        badge: 'bg-teal-400',
+        button: 'bg-teal-400 hover:bg-teal-500',
+        accent: 'text-teal-500'
       }
-    }
-    return {
-      gradient: 'from-gray-50 to-slate-50',
-      badge: 'bg-gray-400',
-      button: 'bg-gray-400 hover:bg-gray-500',
-      accent: 'text-gray-500'
-    }
+    ]
+    
+    // Use hash to select a color scheme
+    const colorIndex = Math.abs(hash) % colorSchemes.length
+    return colorSchemes[colorIndex]
   }
 
   const categories = [...new Set(products.map(p => p.category))]
@@ -198,10 +236,14 @@ export default function BrandPage() {
             {brand.description}
           </p>
           <div className="w-full h-48 sm:h-64 md:h-80 lg:h-96 relative rounded-2xl overflow-hidden shadow-2xl mb-6 sm:mb-8 mx-4 sm:mx-0">
-            <img
+            <Image
               src={brand.image_url}
               alt={brand.name}
-              className="w-full h-full object-cover"
+              fill
+              className="object-cover"
+              priority={brand.name.toLowerCase() === 'kiowa'}
+              fetchPriority={brand.name.toLowerCase() === 'kiowa' ? "high" : "auto"}
+              sizes="(max-width: 640px) 100vw, (max-width: 768px) 100vw, (max-width: 1024px) 100vw, 100vw"
             />
           </div>
         </motion.div>
@@ -301,20 +343,18 @@ export default function BrandPage() {
       </div>
 
       {/* Product Modal */}
-      <Suspense fallback={<div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div></div>}>
-        <ProductModal
-          product={selectedProduct}
-          isOpen={isModalOpen}
-          onClose={() => {
-            setIsModalOpen(false)
-            setSelectedProduct(null)
-          }}
-          onAddToCart={(product) => {
-            // TODO: Implement add to cart functionality
-            console.log('Add to cart:', product.id)
-          }}
-        />
-      </Suspense>
+      <ProductModal
+        product={selectedProduct}
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false)
+          setSelectedProduct(null)
+        }}
+        onAddToCart={(product) => {
+          // TODO: Implement add to cart functionality
+          console.log('Add to cart:', product.id)
+        }}
+      />
     </div>
   )
 }

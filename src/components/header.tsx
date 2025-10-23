@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
-import { ShoppingCart, Menu, Heart, User, X, LogOut } from 'lucide-react'
+import { ShoppingCart, Menu, Heart, User, X, LogOut, Search } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
@@ -29,6 +29,10 @@ export function Header({ cartItemsCount, onCartClick }: HeaderProps) {
 
   const handleAccountClick = () => {
     router.push('/auth')
+  }
+
+  const handleSearchClick = () => {
+    router.push('/search')
   }
 
   const handleSignOut = async () => {
@@ -68,8 +72,18 @@ export function Header({ cartItemsCount, onCartClick }: HeaderProps) {
             ))}
           </nav>
 
-          {/* Account, Cart and Mobile Menu */}
+          {/* Account, Search, Cart and Mobile Menu */}
           <div className="flex items-center space-x-2 sm:space-x-4">
+            {/* Search Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSearchClick}
+              className="border-[#FFDC00] hover:bg-[#FFDC00] text-[#FFDC00] hover:text-black px-2 sm:px-3"
+            >
+              <Search className="h-4 w-4" />
+              <span className="hidden sm:inline ml-1 sm:ml-2">Search</span>
+            </Button>
             {/* Account/Login Button */}
             {loading ? (
               <div className="w-16 sm:w-20 h-8 bg-gray-700 animate-pulse rounded"></div>
@@ -144,6 +158,17 @@ export function Header({ cartItemsCount, onCartClick }: HeaderProps) {
                   
                   {/* Mobile Account/Login Button */}
                   <div className="mt-6 pt-4 border-t border-gray-800">
+                    {/* Mobile Search Button */}
+                    <button
+                      onClick={() => {
+                        handleSearchClick()
+                        setIsMenuOpen(false)
+                      }}
+                      className="w-full text-left text-lg font-medium transition-colors hover:text-yellow-300 flex items-center gap-2 text-[#FFDC00] mb-4"
+                    >
+                      <Search className="h-5 w-5" />
+                      Search Products
+                    </button>
                     {loading ? (
                       <div className="w-full h-10 bg-gray-700 animate-pulse rounded"></div>
                     ) : user ? (

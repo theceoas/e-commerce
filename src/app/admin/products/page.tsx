@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense, useMemo } from "react"
 import { useAuth } from "@/contexts/AuthContext"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
@@ -12,8 +12,18 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
-import { MultiImageUpload } from "@/components/ui/multi-image-upload"
-
+// Lazy load heavy components
+// const MultiImageUpload = lazy(() => import("@/components/ui/multi-image-upload").then(module => ({ default: module.MultiImageUpload })))
+import dynamic from 'next/dynamic'
+const MultiImageUpload = dynamic(() => import("@/components/ui/multi-image-upload").then(module => module.MultiImageUpload), {
+  ssr: false,
+  loading: () => (
+    <div className="p-4 border rounded-md bg-white/90 shadow-sm animate-pulse">
+      <div className="h-6 bg-gray-200 rounded w-32 mb-3" />
+      <div className="h-32 bg-gray-200 rounded" />
+    </div>
+  ),
+})
 import {
   Package,
   Plus,
@@ -64,8 +74,51 @@ interface Brand {
   id: string
   name: string
   image_url: string
-  description: string
+  description?: string
   is_active: boolean
+}
+
+// Skeleton components for loading states
+function ProductCardSkeleton() {
+  return (
+    <Card className="bg-white/90 shadow-lg border-0">
+      <CardContent className="p-4">
+        <div className="flex items-center gap-4">
+          <div className="w-16 h-16 bg-gray-200 rounded-lg animate-pulse" />
+          <div className="flex-1 space-y-2">
+            <div className="h-4 bg-gray-200 rounded animate-pulse" />
+            <div className="h-3 bg-gray-200 rounded w-2/3 animate-pulse" />
+            <div className="h-3 bg-gray-200 rounded w-1/2 animate-pulse" />
+          </div>
+          <div className="space-y-2">
+            <div className="h-6 w-16 bg-gray-200 rounded animate-pulse" />
+            <div className="h-8 w-20 bg-gray-200 rounded animate-pulse" />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function ProductsPageSkeleton() {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex justify-between items-center mb-8">
+          <div className="space-y-2">
+            <div className="h-8 w-48 bg-gray-200 rounded animate-pulse" />
+            <div className="h-4 w-64 bg-gray-200 rounded animate-pulse" />
+          </div>
+          <div className="h-10 w-32 bg-gray-200 rounded animate-pulse" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <ProductCardSkeleton key={i} />
+          ))}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export default function ProductsManagement() {
@@ -100,24 +153,58 @@ export default function ProductsManagement() {
   const [isUploading, setIsUploading] = useState(false)
   const [mainImageIndex, setMainImageIndex] = useState(0)
 
+  // Optimize data fetching with parallel requests and memoization
   useEffect(() => {
     if (user) {
-      fetchProducts()
-      fetchBrands()
+      const fetchData = async () => {
+        try {
+          const [productsResult, brandsResult] = await Promise.all([
+            supabase
+              .from('products_with_discounts')
+              .select('id, name, description, price, thumbnail_url, additional_images, in_stock, brand_id, sizes, created_at, featured, discount_percentage, discount_amount, discount_start_date, discount_end_date, discount_active, discounted_price, has_active_discount')
+              .order('created_at', { ascending: false }),
+            supabase
+              .from('brands')
+              .select('id, name, image_url, is_active, description')
+              .eq('is_active', true)
+              .order('name')
+          ])
+
+          if (productsResult.error) throw productsResult.error
+          if (brandsResult.error) throw brandsResult.error
+
+          setProducts(productsResult.data || [])
+          setBrands(brandsResult.data || [])
+        } catch (error) {
+          toast.error('Failed to fetch data')
+        } finally {
+          setLoading(false)
+        }
+      }
+
+      fetchData()
     }
   }, [user])
+
+  // Memoize filtered products for better performance
+  const filteredProducts = useMemo(() => {
+    if (!searchQuery) return products
+    return products.filter(product =>
+      product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      product.description.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+  }, [products, searchQuery])
 
   const fetchProducts = async () => {
     try {
       const { data, error } = await supabase
       .from('products_with_discounts')
-      .select('*')
+      .select('id, name, description, price, thumbnail_url, additional_images, in_stock, brand_id, sizes, created_at, featured, discount_percentage, discount_amount, discount_start_date, discount_end_date, discount_active, discounted_price, has_active_discount')
       .order('created_at', { ascending: false })
 
       if (error) throw error
       setProducts(data || [])
     } catch (error) {
-      console.error('Error fetching products:', error)
       toast.error('Failed to fetch products')
     } finally {
       setLoading(false)
@@ -128,14 +215,13 @@ export default function ProductsManagement() {
     try {
       const { data, error } = await supabase
         .from('brands')
-        .select('*')
+        .select('id, name, image_url, is_active, description')
         .eq('is_active', true)
         .order('name')
 
       if (error) throw error
       setBrands(data || [])
     } catch (error) {
-      console.error('Error fetching brands:', error)
       toast.error('Failed to fetch brands')
     }
   }
@@ -483,15 +569,6 @@ export default function ProductsManagement() {
   }
 
   const groupProductsByBrand = () => {
-    // Filter products based on search query
-    const filteredProducts = products.filter(product => {
-      const searchLower = searchQuery.toLowerCase()
-      const productName = product.name.toLowerCase()
-      const brandName = getBrandName(product.brand_id).toLowerCase()
-      
-      return productName.includes(searchLower) || brandName.includes(searchLower)
-    })
-    
     const grouped = filteredProducts.reduce((acc, product) => {
       const brandId = product.brand_id
       if (!acc[brandId]) {
@@ -509,35 +586,32 @@ export default function ProductsManagement() {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
-      </div>
-    )
+    return <ProductsPageSkeleton />
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="w-full overflow-auto">
-        <div className="p-4 sm:p-6 lg:p-8">
-          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 gap-4">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Products Management</h1>
-              <p className="text-sm sm:text-base text-gray-600 mt-2">Manage your product catalog</p>
-            </div>
-            
-            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-              <DialogTrigger asChild>
-                <Button onClick={resetForm} className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto text-sm">
-                  <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
-                  <span className="hidden sm:inline">Add Product</span>
-                  <span className="sm:hidden">Add</span>
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Create New Product</DialogTitle>
-                  <DialogDescription>
+    <Suspense fallback={<ProductsPageSkeleton />}>
+      <div className="min-h-screen bg-gray-50">
+        <div className="w-full overflow-auto">
+          <div className="p-4 sm:p-6 lg:p-8">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 gap-4">
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Products Management</h1>
+                <p className="text-sm sm:text-base text-gray-600 mt-2">Manage your product catalog</p>
+              </div>
+              
+              <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button onClick={resetForm} className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto text-sm">
+                    <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
+                    <span className="hidden sm:inline">Add Product</span>
+                    <span className="sm:hidden">Add</span>
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Create New Product</DialogTitle>
+                    <DialogDescription>
                     Add a new product to your catalog
                   </DialogDescription>
                 </DialogHeader>
@@ -637,20 +711,22 @@ export default function ProductsManagement() {
 
                   <div>
                     <Label>Product Images</Label>
-                    <MultiImageUpload
-                      onImagesSelect={(files) => setSelectedImages(prev => [...prev, ...files])}
-                      currentImages={[]}
-                      onImageRemove={(index) => {
-                        setSelectedImages(prev => prev.filter((_, i) => i !== index))
-                        if (mainImageIndex >= selectedImages.length - 1) {
-                          setMainImageIndex(0)
-                        }
-                      }}
-                      maxImages={5}
-                      mainImageIndex={mainImageIndex}
-                      onMainImageChange={setMainImageIndex}
-                      disabled={isLoading}
-                    />
+                    <Suspense fallback={<div className="h-32 bg-gray-200 rounded animate-pulse" />}>
+                      <MultiImageUpload
+                        onImagesSelect={(files) => setSelectedImages(prev => [...prev, ...files])}
+                        currentImages={[]}
+                        onImageRemove={(index) => {
+                          setSelectedImages(prev => prev.filter((_, i) => i !== index))
+                          if (mainImageIndex >= selectedImages.length - 1) {
+                            setMainImageIndex(0)
+                          }
+                        }}
+                        maxImages={5}
+                        mainImageIndex={mainImageIndex}
+                        onMainImageChange={setMainImageIndex}
+                        disabled={isLoading}
+                      />
+                    </Suspense>
                   </div>
 
                   <div className="flex items-center space-x-2">
@@ -1090,19 +1166,21 @@ export default function ProductsManagement() {
 
             <div>
               <Label>Product Images</Label>
-              <MultiImageUpload
-                onImagesSelect={(files) => setSelectedImages(prev => [...prev, ...files])}
-                currentImages={formData.additional_images.filter(img => img.trim() !== '')}
-                onImageRemove={(index) => {
-                  const newImages = [...formData.additional_images]
-                  newImages.splice(index, 1)
-                  setFormData(prev => ({ ...prev, additional_images: newImages }))
-                }}
-                maxImages={5}
-                mainImageIndex={mainImageIndex}
-                onMainImageChange={setMainImageIndex}
-                disabled={isUploading}
-              />
+              <Suspense fallback={<div className="h-32 bg-gray-200 rounded animate-pulse" />}>
+                <MultiImageUpload
+                  onImagesSelect={(files) => setSelectedImages(prev => [...prev, ...files])}
+                  currentImages={formData.additional_images.filter(img => img.trim() !== '')}
+                  onImageRemove={(index) => {
+                    const newImages = [...formData.additional_images]
+                    newImages.splice(index, 1)
+                    setFormData(prev => ({ ...prev, additional_images: newImages }))
+                  }}
+                  maxImages={5}
+                  mainImageIndex={mainImageIndex}
+                  onMainImageChange={setMainImageIndex}
+                  disabled={isUploading}
+                />
+              </Suspense>
               <p className="text-sm text-muted-foreground mt-2">
                 Upload up to 5 images. The first image will be used as the thumbnail.
               </p>
@@ -1351,6 +1429,7 @@ export default function ProductsManagement() {
       </Dialog>
 
       <Toaster />
-    </div>
+      </div>
+    </Suspense>
   )
 }

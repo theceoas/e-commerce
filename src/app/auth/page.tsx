@@ -69,8 +69,8 @@ export default function AuthPage() {
     setIsLoading(true)
 
     try {
-      // Check if this is the admin email
-      const role = email === 'abdu@manacquisition.com' ? 'admin' : 'customer';
+      // All new signups default to customer role
+      const role = 'customer';
       
       await signUp(email, password, {
         firstName,

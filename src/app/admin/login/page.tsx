@@ -1,36 +1,43 @@
-"use client"
+'use client'
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { useAuth } from "@/contexts/AuthContext"
-import { motion } from "framer-motion"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-
-import { Lock, Mail, ArrowLeft } from "lucide-react"
-import Link from "next/link"
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { useAuth } from '@/contexts/AuthContext'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Shield, Mail, Lock, ArrowLeft, Heart } from 'lucide-react'
+import Link from 'next/link'
 
 export default function AdminLoginPage() {
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [error, setError] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  
+  const { user, signIn, loading: authLoading } = useAuth()
   const router = useRouter()
-  const { user, loading, signIn, isAdmin } = useAuth()
 
-  // Redirect if already logged in as admin
   useEffect(() => {
-    if (!loading && user && isAdmin) {
-      router.push("/admin")
+    // If user is already authenticated
+    if (!authLoading && user) {
+      if (user.role === 'admin') {
+        router.push('/admin')
+      } else {
+        router.push('/')
+      }
+    } else if (!authLoading) {
+      setLoading(false)
     }
-  }, [user, isAdmin, loading, router])
+  }, [user, authLoading, router])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError("")
-    setIsLoading(true)
+    setError('')
+    setIsSubmitting(true)
 
     try {
       const { error } = await signIn(email, password)
@@ -38,129 +45,131 @@ export default function AdminLoginPage() {
       if (error) {
         setError(error.message)
       } else {
-        // Success - the auth context will handle the redirect
-        router.push("/admin")
+        // The useEffect will handle the redirect based on user role
       }
     } catch (err) {
-      setError("An unexpected error occurred. Please try again.")
+      setError('An unexpected error occurred. Please try again.')
+    } finally {
+      setIsSubmitting(false)
     }
-    
-    setIsLoading(false)
   }
 
   // Show loading state while checking auth
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+      <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-orange-50 to-yellow-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Checking authentication...</p>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-yellow-50 to-orange-100 flex items-center justify-center p-4">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="w-full max-w-md"
-      >
-        <Card className="shadow-2xl border-0 bg-white/80 backdrop-blur-sm">
-          <CardHeader className="space-y-1 text-center">
-            <div className="flex items-center justify-center mb-4">
-              <div className="bg-primary/10 p-3 rounded-full">
-                <Lock className="h-6 w-6 text-primary" />
-              </div>
-            </div>
-            <CardTitle className="text-2xl font-bold text-gray-900">
-              Admin Login
-            </CardTitle>
-            <CardDescription className="text-gray-600">
-              Access the admin dashboard
+    <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-orange-50 to-yellow-100 flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="bg-yellow-400 p-3 rounded-full inline-block mb-4">
+            <Heart className="h-8 w-8 text-black" />
+          </div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Admin Access</h1>
+          <p className="text-gray-600">Sign in to access the admin dashboard</p>
+        </div>
+
+        <Card className="shadow-xl border border-yellow-200 bg-white/95 backdrop-blur-sm">
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-2xl font-bold text-center text-gray-900">Welcome Back</CardTitle>
+            <CardDescription className="text-center text-gray-600">
+              Enter your credentials to continue
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent>
             <form onSubmit={handleLogin} className="space-y-4">
+              {error && (
+                <Alert className="border-red-200 bg-red-50">
+                  <AlertDescription className="text-red-700">{error}</AlertDescription>
+                </Alert>
+              )}
+              
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-sm font-medium text-gray-700">
-                  Email
+                  Email Address
                 </Label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                   <Input
                     id="email"
                     type="email"
-                    placeholder="admin@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10 border-gray-200 focus:border-primary focus:ring-primary"
+                    placeholder="admin@example.com"
                     required
+                    disabled={isSubmitting}
+                    className="pl-10 border-gray-200 focus:border-yellow-500 focus:ring-yellow-500"
                   />
                 </div>
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="password" className="text-sm font-medium text-gray-700">
                   Password
                 </Label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                   <Input
                     id="password"
                     type="password"
-                    placeholder="Enter your password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10 border-gray-200 focus:border-primary focus:ring-primary"
+                    placeholder="Enter your password"
                     required
+                    disabled={isSubmitting}
+                    className="pl-10 border-gray-200 focus:border-yellow-500 focus:ring-yellow-500"
                   />
                 </div>
               </div>
 
-              {error && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm"
-                >
-                  {error}
-                </motion.div>
-              )}
-
               <Button
                 type="submit"
-                className="w-full bg-primary hover:bg-primary/90 text-white font-medium py-2 px-4 rounded-md transition-colors"
-                disabled={isLoading}
+                disabled={isSubmitting}
+                className="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-medium py-3 px-4 rounded-md transition-colors"
               >
-                {isLoading ? (
-                  <div className="flex items-center justify-center">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                {isSubmitting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-black mr-2"></div>
                     Signing in...
-                  </div>
+                  </>
                 ) : (
-                  "Sign In"
+                  'Sign In'
                 )}
               </Button>
             </form>
 
-            <div className="text-center pt-4">
+            <div className="mt-6 text-center">
               <Link 
                 href="/" 
-                className="inline-flex items-center text-sm text-gray-600 hover:text-primary transition-colors"
+                className="inline-flex items-center text-sm text-gray-600 hover:text-yellow-600 transition-colors"
               >
-                <ArrowLeft className="h-4 w-4 mr-1" />
+                <ArrowLeft className="w-4 h-4 mr-1" />
                 Back to Home
               </Link>
             </div>
 
-            <div className="text-center pt-2">
-              <p className="text-xs text-gray-500">
+            <div className="mt-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+              <p className="text-xs text-center text-gray-600">
+                <Shield className="w-3 h-3 inline mr-1" />
                 Admin access only. Unauthorized access is prohibited.
               </p>
             </div>
           </CardContent>
         </Card>
-      </motion.div>
+
+        {/* Decorative elements */}
+        <div className="absolute -top-4 -left-4 w-24 h-24 bg-yellow-200 rounded-full opacity-20 animate-pulse"></div>
+        <div className="absolute -bottom-4 -right-4 w-32 h-32 bg-orange-200 rounded-full opacity-20 animate-pulse delay-1000"></div>
+      </div>
     </div>
   )
 }

@@ -1,76 +1,87 @@
 "use client"
 
-import { useEffect, useState, createContext, useContext } from "react"
+import { useEffect, useState } from "react"
+import dynamic from 'next/dynamic'
 import { useRouter, usePathname } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
-import AdminSidebar from "@/components/admin-sidebar"
+import { SidebarContext, useSidebar } from "@/contexts/SidebarContext"
 import { Button } from "@/components/ui/button"
 import { Menu, X } from "lucide-react"
 
-// Create context for sidebar state
-const SidebarContext = createContext<{
-  isCollapsed: boolean
-  setIsCollapsed: (collapsed: boolean) => void
-  isMobileMenuOpen: boolean
-  setIsMobileMenuOpen: (open: boolean) => void
-}>({
-  isCollapsed: false,
-  setIsCollapsed: () => {},
-  isMobileMenuOpen: false,
-  setIsMobileMenuOpen: () => {}
-})
+// Loading component for AdminSidebar
+function AdminSidebarSkeleton() {
+  return (
+    <div className="w-[280px] h-full bg-white/95 backdrop-blur-sm border-r border-gray-200 shadow-lg animate-pulse">
+      <div className="p-6">
+        <div className="h-8 bg-gray-200 rounded mb-4"></div>
+        <div className="space-y-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-10 bg-gray-200 rounded"></div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
 
-export const useSidebar = () => useContext(SidebarContext)
+// Replace React.lazy with next/dynamic to avoid chunk load issues
+const AdminSidebar = dynamic(() => import("@/components/admin-sidebar"), {
+  ssr: false,
+  loading: () => <AdminSidebarSkeleton />,
+})
 
 export default function AdminLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const { user, isAdmin, loading } = useAuth()
+  const { user, loading } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
-  // Don't redirect if we're already on the login page
-  const isLoginPage = pathname === "/admin/login"
+  // Auth redirect guard: always call hooks; skip redirect on login route
+  useEffect(() => {
+    if (loading) return // Don't redirect while loading
+    if (pathname === '/admin/login') return // Allow login to render
 
-  // Determine active section based on pathname
-  const getActiveSection = () => {
-    if (pathname === "/admin") return "dashboard"
-    if (pathname.startsWith("/admin/orders")) return "orders"
-    if (pathname.startsWith("/admin/products")) return "products"
-    if (pathname.startsWith("/admin/brands")) return "brands"
-    if (pathname.startsWith("/admin/customers")) return "customers"
-    if (pathname.startsWith("/admin/promotions")) return "promotions"
-    if (pathname.startsWith("/admin/settings")) return "settings"
-    return "dashboard"
+    if (!user || user.role !== 'admin') {
+      router.replace('/admin/login')
+    }
+  }, [user, loading, router, pathname])
+
+  // Allow public login page to render inside admin segment
+  if (pathname === '/admin/login') {
+    return <>{children}</>
   }
 
-  useEffect(() => {
-    if (!loading && (!user || !isAdmin) && !isLoginPage) {
-      router.push("/admin/login")
-    }
-  }, [user, isAdmin, loading, router, isLoginPage])
-
-  // Show loading while checking auth state (but not on login page)
-  if (loading && !isLoginPage) {
+  // Show loading state while auth is being determined
+  if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-500"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
       </div>
     )
   }
 
-  // If on login page, render without authentication check
-  if (isLoginPage) {
-    return children
+  // Don't render admin content if not authenticated
+  if (!user || user.role !== 'admin') {
+    return null
   }
 
-  // Redirect if not authenticated (this should be handled by useEffect, but just in case)
-  if (!user || !isAdmin) {
-    return null
+  const getActiveSection = () => {
+    if (pathname === '/admin') return 'dashboard'
+    if (pathname.startsWith('/admin/products')) return 'products'
+    if (pathname.startsWith('/admin/orders')) return 'orders'
+    if (pathname.startsWith('/admin/customers')) return 'customers'
+    if (pathname.startsWith('/admin/brands')) return 'brands'
+    if (pathname.startsWith('/admin/promotions')) return 'promotions'
+    if (pathname.startsWith('/admin/settings')) return 'settings'
+    return 'dashboard'
   }
 
   return (

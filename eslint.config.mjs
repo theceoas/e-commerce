@@ -18,6 +18,7 @@ const eslintConfig = [
       "@typescript-eslint/no-empty-object-type": "off",
       "react/no-unescaped-entities": "off",
       "react-hooks/exhaustive-deps": "warn",
+      "react-hooks/rules-of-hooks": "error",
       "@next/next/no-img-element": "warn",
     },
     ignores: [

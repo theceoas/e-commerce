@@ -65,6 +65,7 @@ export function ShoppingCart({
                         alt={item.product.name}
                         fill
                         className="object-cover"
+                        sizes="64px"
                       />
                     </div>
                     

@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Plus, Heart, X, Share2, Copy, Check, ArrowLeft, ArrowRight, ShoppingCart } from 'lucide-react'
 import { useCart } from '@/contexts/CartContext'
+import Image from 'next/image'
 import { toast } from 'sonner'
 
 interface Product {
@@ -17,6 +18,8 @@ interface Product {
   category?: string
   in_stock: boolean
   brand_id?: string
+  created_at?: string
+  featured?: boolean
   sizes?: Array<{
     size: string
     stock: number
@@ -39,7 +42,7 @@ interface ProductModalProps {
   isFavorite?: boolean
 }
 
-export function ProductModal({
+export default function ProductModal({
   product,
   isOpen,
   onClose,
@@ -54,26 +57,97 @@ export function ProductModal({
   const [isAddingToCart, setIsAddingToCart] = useState(false)
   const [touchStart, setTouchStart] = useState<number | null>(null)
   const [touchEnd, setTouchEnd] = useState<number | null>(null)
+  const [imagesLoaded, setImagesLoaded] = useState<Set<number>>(new Set())
+  const [currentImageLoading, setCurrentImageLoading] = useState(true)
   
   const { addToCart } = useCart()
 
   // Minimum swipe distance (in px)
   const minSwipeDistance = 50
 
-  // All hooks must be called before any conditional returns
+  // Memoize images array to prevent unnecessary recalculations
+  const images = useMemo(() => 
+    product ? [product.thumbnail_url, ...(product.additional_images || [])].filter(Boolean) : [],
+    [product]
+  )
+
+  // Reset state when product changes
   useEffect(() => {
-    if (product && typeof window !== 'undefined') {
-      const url = `${window.location.origin}${window.location.pathname}?product=${product.id}`
-      setShareUrl(url)
+    if (product) {
+      setSelectedImageIndex(0)
+      setSelectedSize('')
+      setImagesLoaded(new Set())
+      setCurrentImageLoading(true)
+      
+      if (typeof window !== 'undefined') {
+        const url = `${window.location.origin}${window.location.pathname}?product=${product.id}`
+        setShareUrl(url)
+      }
     }
   }, [product])
+
+  // Preload images for better performance
+  useEffect(() => {
+    if (images.length > 0 && isOpen) {
+      // Preload all images immediately when modal opens
+      images.forEach((src, index) => {
+        if (index === 0) return // Skip first image as it's already loading
+        
+        const img = new window.Image()
+        img.onload = () => {
+          setImagesLoaded(prev => new Set(prev).add(index))
+        }
+        img.onerror = () => {
+          console.warn(`Failed to preload image: ${src}`)
+        }
+        // Set high priority for next image, normal for others
+        img.fetchPriority = index === 1 ? 'high' : 'auto'
+        img.src = src
+      })
+    }
+  }, [images, isOpen])
+
+  // Update loading state when image changes
+  useEffect(() => {
+    setCurrentImageLoading(true)
+  }, [selectedImageIndex])
+
+  // Preload adjacent images when navigating
+  useEffect(() => {
+    if (images.length > 1 && isOpen) {
+      const prevIndex = selectedImageIndex > 0 ? selectedImageIndex - 1 : images.length - 1
+      const nextIndex = selectedImageIndex < images.length - 1 ? selectedImageIndex + 1 : 0
+      
+      // Preload previous image
+      if (!imagesLoaded.has(prevIndex) && prevIndex !== selectedImageIndex) {
+        const img = new window.Image()
+        img.onload = () => {
+          setImagesLoaded(prev => new Set(prev).add(prevIndex))
+        }
+        img.src = images[prevIndex]
+      }
+      
+      // Preload next image
+      if (!imagesLoaded.has(nextIndex) && nextIndex !== selectedImageIndex) {
+        const img = new window.Image()
+        img.onload = () => {
+          setImagesLoaded(prev => new Set(prev).add(nextIndex))
+        }
+        img.src = images[nextIndex]
+      }
+    }
+  }, [selectedImageIndex, images, isOpen, imagesLoaded])
 
   useEffect(() => {
     // Prevent body scroll when modal is open
     if (isOpen) {
-      document.body.style.overflow = 'hidden'
+      requestAnimationFrame(() => {
+        document.body.style.overflow = 'hidden'
+      })
     } else {
-      document.body.style.overflow = 'unset'
+      requestAnimationFrame(() => {
+        document.body.style.overflow = 'unset'
+      })
     }
 
     // Cleanup on unmount
@@ -82,56 +156,61 @@ export function ProductModal({
     }
   }, [isOpen])
 
-  // Define images array safely
-  const images = product ? [product.thumbnail_url, ...(product.additional_images || [])].filter(Boolean) : []
+  // Optimized navigation functions with useCallback
+  const navigateToImage = useCallback((direction: 'prev' | 'next') => {
+    if (images.length <= 1) return
+    
+    setSelectedImageIndex(prev => {
+      if (direction === 'next') {
+        return prev < images.length - 1 ? prev + 1 : 0
+      } else {
+        return prev > 0 ? prev - 1 : images.length - 1
+      }
+    })
+  }, [images.length])
 
-  const handleKeyDown = (e: KeyboardEvent) => {
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key === 'Escape') {
       onClose()
     }
     if (e.key === 'ArrowLeft' && images.length > 1) {
-      setSelectedImageIndex(prev => prev > 0 ? prev - 1 : images.length - 1)
+      navigateToImage('prev')
     }
     if (e.key === 'ArrowRight' && images.length > 1) {
-      setSelectedImageIndex(prev => prev < images.length - 1 ? prev + 1 : 0)
+      navigateToImage('next')
     }
-  }
+  }, [images.length, navigateToImage, onClose])
 
   useEffect(() => {
     if (isOpen) {
       document.addEventListener('keydown', handleKeyDown)
       return () => document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isOpen, images.length])
+  }, [isOpen, handleKeyDown])
 
-  // Touch handlers for swipe functionality
-  const onTouchStart = (e: React.TouchEvent) => {
-    setTouchEnd(null) // otherwise the swipe is fired even with usual touch events
+  // Optimized touch handlers with useCallback
+  const onTouchStart = useCallback((e: React.TouchEvent) => {
+    setTouchEnd(null)
     setTouchStart(e.targetTouches[0].clientX)
-  }
+  }, [])
 
-  const onTouchMove = (e: React.TouchEvent) => {
+  const onTouchMove = useCallback((e: React.TouchEvent) => {
     setTouchEnd(e.targetTouches[0].clientX)
-  }
+  }, [])
 
-  const onTouchEnd = () => {
-    if (!touchStart || !touchEnd) return
+  const onTouchEnd = useCallback(() => {
+    if (!touchStart || !touchEnd || images.length <= 1) return
     
     const distance = touchStart - touchEnd
     const isLeftSwipe = distance > minSwipeDistance
     const isRightSwipe = distance < -minSwipeDistance
 
-    if (images.length > 1) {
-      if (isLeftSwipe) {
-        // Swipe left - next image
-        setSelectedImageIndex(prev => prev < images.length - 1 ? prev + 1 : 0)
-      }
-      if (isRightSwipe) {
-        // Swipe right - previous image
-        setSelectedImageIndex(prev => prev > 0 ? prev - 1 : images.length - 1)
-      }
+    if (isLeftSwipe) {
+      navigateToImage('next')
+    } else if (isRightSwipe) {
+      navigateToImage('prev')
     }
-  }
+  }, [touchStart, touchEnd, images.length, navigateToImage])
 
   // Now we can safely return early after all hooks are called
   if (!product || !isOpen) return null
@@ -208,12 +287,27 @@ export function ProductModal({
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
           >
-            <img
-              src={images[selectedImageIndex] || '/images/placeholder.jpg'}
-              alt={product.name}
-              className="max-w-full max-h-full object-contain transition-all duration-500 shadow-2xl select-none"
-              draggable={false}
-            />
+            <div className="relative">
+              {currentImageLoading && (
+                <div className="absolute inset-0 bg-gray-100 animate-pulse flex items-center justify-center">
+                  <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              )}
+              <Image
+                src={images[selectedImageIndex] || '/images/placeholder.jpg'}
+                alt={product.name}
+                width={800}
+                height={800}
+                className="max-w-full max-h-full object-contain transition-all duration-300 shadow-2xl select-none"
+                sizes="(max-width: 768px) 100vw, 50vw"
+                priority={selectedImageIndex === 0}
+                loading={selectedImageIndex === 0 ? 'eager' : 'lazy'}
+                placeholder="blur"
+                blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R//2Q=="
+                onLoad={() => setCurrentImageLoading(false)}
+                onLoadStart={() => setCurrentImageLoading(true)}
+              />
+            </div>
             
             {!product.in_stock && (
               <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
@@ -227,7 +321,7 @@ export function ProductModal({
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
-                    setSelectedImageIndex(prev => prev > 0 ? prev - 1 : images.length - 1)
+                    navigateToImage('prev')
                   }}
                   className="absolute left-2 md:left-8 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-full p-2 md:p-4 shadow-2xl transition-all duration-200 hover:scale-110"
                 >
@@ -236,7 +330,7 @@ export function ProductModal({
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
-                    setSelectedImageIndex(prev => prev < images.length - 1 ? prev + 1 : 0)
+                    navigateToImage('next')
                   }}
                   className="absolute right-2 md:right-8 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-full p-2 md:p-4 shadow-2xl transition-all duration-200 hover:scale-110"
                 >
