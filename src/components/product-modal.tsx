@@ -91,17 +91,28 @@ export default function ProductModal({
             const brandName = data.name.toLowerCase()
             const isMiniMe = brandName.includes('minime') || brandName.includes('mini me') || brandName === 'minime'
             setIsMiniMeBrand(isMiniMe)
-            console.log('[ProductModal] Brand:', data.name, 'isMiniMe:', isMiniMe)
+            console.log('[ProductModal] Brand detection:', {
+              brandName: data.name,
+              brandNameLower: brandName,
+              isMiniMe,
+              productId: product.id,
+              productName: product.name,
+              sizes: product.sizes,
+              sizesWithPrices: product.sizes?.map(s => ({ size: s.size, price: s.price }))
+            })
+          } else {
+            console.error('[ProductModal] Error fetching brand:', error)
           }
         } catch (error) {
-          console.error('Error fetching brand info:', error)
+          console.error('[ProductModal] Error fetching brand info:', error)
         }
       } else {
         setIsMiniMeBrand(false)
+        console.log('[ProductModal] No brand_id, setting isMiniMeBrand to false')
       }
     }
     fetchBrandInfo()
-  }, [product?.brand_id])
+  }, [product?.brand_id, product?.id])
 
   // Calculate price based on selected size (for MiniMe products)
   const displayPrice = useMemo(() => {
@@ -114,11 +125,20 @@ export default function ProductModal({
     // For MiniMe products, check if size has specific price
     if (selectedSize && product.sizes && isMiniMeBrand) {
       const sizeInfo = product.sizes.find(s => s.size === selectedSize)
+      console.log('[ProductModal] Size selection debug:', {
+        selectedSize,
+        isMiniMeBrand,
+        sizes: product.sizes,
+        sizeInfo,
+        sizeInfoPrice: sizeInfo?.price,
+        baseProductPrice
+      })
+      
       if (sizeInfo && sizeInfo.price !== undefined && sizeInfo.price !== null && sizeInfo.price > 0) {
         priceToUse = sizeInfo.price
-        console.log('[ProductModal] Using size-specific price:', sizeInfo.price, 'for size:', selectedSize)
+        console.log('[ProductModal] ✅ Using size-specific price:', sizeInfo.price, 'for size:', selectedSize)
       } else {
-        console.log('[ProductModal] No size-specific price found, using base price:', baseProductPrice)
+        console.log('[ProductModal] ⚠️ No size-specific price found for size:', selectedSize, 'SizeInfo:', sizeInfo, 'Using base price:', baseProductPrice)
       }
     }
     
@@ -145,7 +165,14 @@ export default function ProductModal({
     // If size is selected and product has size-based pricing
     if (selectedSize && product.sizes && isMiniMeBrand) {
       const sizeInfo = product.sizes.find(s => s.size === selectedSize)
+      console.log('[ProductModal] BasePrice calculation:', {
+        selectedSize,
+        sizeInfo,
+        sizeInfoPrice: sizeInfo?.price,
+        baseProductPrice
+      })
       if (sizeInfo?.price !== undefined && sizeInfo.price !== null && sizeInfo.price > 0) {
+        console.log('[ProductModal] ✅ Using size-specific base price:', sizeInfo.price)
         return sizeInfo.price
       }
     }
@@ -192,7 +219,9 @@ export default function ProductModal({
         name: product.name,
         price: product.price,
         hasPrice: !!product.price,
-        sizes: product.sizes
+        sizes: product.sizes,
+        sizesWithPrices: product.sizes?.map(s => ({ size: s.size, stock: s.stock, price: s.price, hasPrice: s.price !== undefined && s.price !== null })),
+        brand_id: product.brand_id
       })
       
       if (typeof window !== 'undefined') {
@@ -267,10 +296,10 @@ export default function ProductModal({
       const indicesToPreload = [prevIndex, nextIndex]
       indicesToPreload.forEach((index) => {
         if (index !== selectedImageIndex && images[index]) {
-          const img = new window.Image()
+        const img = new window.Image()
           img.fetchPriority = 'high'
           img.loading = 'eager'
-          img.onload = () => {
+        img.onload = () => {
             setImagesLoaded(prev => new Set(prev).add(index))
           }
           img.onerror = () => {
@@ -601,13 +630,13 @@ export default function ProductModal({
                         <p className="text-sm md:text-xl text-gray-500 line-through">
                           ₦{finalBasePrice.toLocaleString()}
                         </p>
-                        <Badge variant="destructive" className="text-xs md:text-sm">
-                          {product.discount_percentage 
-                            ? `${product.discount_percentage}% OFF`
-                            : `₦${product.discount_amount?.toLocaleString()} OFF`
-                          }
-                        </Badge>
-                      </>
+                    <Badge variant="destructive" className="text-xs md:text-sm">
+                      {product.discount_percentage 
+                        ? `${product.discount_percentage}% OFF`
+                        : `₦${product.discount_amount?.toLocaleString()} OFF`
+                      }
+                    </Badge>
+                  </>
                     )
                   } else {
                     return (
@@ -658,28 +687,36 @@ export default function ProductModal({
                       : sizePrice
                     
                     return (
-                      <button
-                        key={sizeOption.size}
-                        onClick={() => setSelectedSize(sizeOption.size)}
-                        disabled={sizeOption.stock === 0}
-                        className={`px-2 md:px-4 py-2 md:py-3 border-2 rounded-lg transition-all font-medium text-sm md:text-base ${
-                          selectedSize === sizeOption.size
-                            ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-md'
-                            : sizeOption.stock === 0
-                            ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
-                            : 'border-gray-300 hover:border-gray-400 hover:shadow-sm'
-                        }`}
-                      >
+                    <button
+                      key={sizeOption.size}
+                        onClick={() => {
+                          console.log('[ProductModal] Size clicked:', {
+                            size: sizeOption.size,
+                            sizePrice: sizeOption.price,
+                            isMiniMeBrand,
+                            productPrice: product.price
+                          })
+                          setSelectedSize(sizeOption.size)
+                        }}
+                      disabled={sizeOption.stock === 0}
+                      className={`px-2 md:px-4 py-2 md:py-3 border-2 rounded-lg transition-all font-medium text-sm md:text-base ${
+                        selectedSize === sizeOption.size
+                          ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-md'
+                          : sizeOption.stock === 0
+                          ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
+                          : 'border-gray-300 hover:border-gray-400 hover:shadow-sm'
+                      }`}
+                    >
                         <div className="flex flex-col items-center">
                           <span>{sizeOption.size}</span>
                           {isMiniMeBrand && sizeOption.price !== undefined && sizeOption.price !== null && (
                             <span className="text-xs mt-1 font-semibold">₦{sizeDisplayPrice.toLocaleString()}</span>
                           )}
-                          {sizeOption.stock === 0 && (
-                            <div className="text-xs mt-1">Out of Stock</div>
-                          )}
+                      {sizeOption.stock === 0 && (
+                        <div className="text-xs mt-1">Out of Stock</div>
+                      )}
                         </div>
-                      </button>
+                    </button>
                     )
                   })}
                 </div>
