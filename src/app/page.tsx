@@ -502,7 +502,7 @@ function KiowaFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
                         img.src = product.thumbnail_url
                       }
                       if (product.additional_images && product.additional_images.length > 0) {
-                        product.additional_images.forEach((src, index) => {
+                        product.additional_images.forEach((src: string, index: number) => {
                           const img = new window.Image()
                           img.fetchPriority = index <= 1 ? 'high' : 'auto'
                           img.src = src
@@ -668,7 +668,7 @@ function OmegeFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
                         img.src = product.thumbnail_url
                       }
                       if (product.additional_images && product.additional_images.length > 0) {
-                        product.additional_images.forEach((src, index) => {
+                        product.additional_images.forEach((src: string, index: number) => {
                           const img = new window.Image()
                           img.fetchPriority = index <= 1 ? 'high' : 'auto'
                           img.src = src
@@ -833,7 +833,7 @@ function MiniMeFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
                         img.src = product.thumbnail_url
                       }
                       if (product.additional_images && product.additional_images.length > 0) {
-                        product.additional_images.forEach((src, index) => {
+                        product.additional_images.forEach((src: string, index: number) => {
                           const img = new window.Image()
                           img.fetchPriority = index <= 1 ? 'high' : 'auto'
                           img.src = src
@@ -1024,7 +1024,7 @@ function OthersFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
                         img.src = product.thumbnail_url
                       }
                       if (product.additional_images && product.additional_images.length > 0) {
-                        product.additional_images.forEach((src, index) => {
+                        product.additional_images.forEach((src: string, index: number) => {
                           const img = new window.Image()
                           img.fetchPriority = index <= 1 ? 'high' : 'auto'
                           img.src = src

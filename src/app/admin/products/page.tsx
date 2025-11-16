@@ -264,12 +264,25 @@ export default function ProductsManagement() {
     }))
   }
 
-  const updateSize = (index: number, field: 'size' | 'stock' | 'price', value: string | number) => {
+  const updateSize = (index: number, field: 'size' | 'stock' | 'price', value: string | number | undefined) => {
     setFormData(prev => ({
       ...prev,
-      sizes: prev.sizes.map((size, i) => 
-        i === index ? { ...size, [field]: value } : size
-      )
+      sizes: prev.sizes.map((size, i) => {
+        if (i === index) {
+          const updatedSize: ProductSize = { ...size }
+          if (field === 'price') {
+            if (value === undefined || value === null) {
+              delete updatedSize.price
+            } else {
+              updatedSize.price = typeof value === 'number' ? value : parseFloat(value as string)
+            }
+          } else {
+            (updatedSize as any)[field] = value
+          }
+          return updatedSize
+        }
+        return size
+      })
     }))
   }
 
@@ -314,11 +327,16 @@ export default function ProductsManagement() {
         in_stock: formData.in_stock,
         sizes: formData.sizes
           .filter(size => size.size.trim() !== '')
-          .map(size => ({
-            size: size.size,
-            stock: size.stock,
-            ...(size.price !== undefined && size.price !== null && { price: size.price })
-          })),
+          .map((size): { size: string; stock: number; price?: number } => {
+            const sizeObj: { size: string; stock: number; price?: number } = {
+              size: size.size,
+              stock: size.stock,
+            }
+            if ((size as ProductSize).price !== undefined && (size as ProductSize).price !== null) {
+              sizeObj.price = (size as ProductSize).price
+            }
+            return sizeObj
+          }),
         featured: formData.featured,
         discount_percentage: formData.discount_percentage ? parseFloat(formData.discount_percentage) : null,
         discount_amount: formData.discount_amount ? parseFloat(formData.discount_amount) : null,
@@ -384,11 +402,16 @@ export default function ProductsManagement() {
         in_stock: formData.in_stock,
         sizes: formData.sizes
           .filter(size => size.size.trim() !== '')
-          .map(size => ({
-            size: size.size,
-            stock: size.stock,
-            ...(size.price !== undefined && size.price !== null && { price: size.price })
-          })),
+          .map((size): { size: string; stock: number; price?: number } => {
+            const sizeObj: { size: string; stock: number; price?: number } = {
+              size: size.size,
+              stock: size.stock,
+            }
+            if ((size as ProductSize).price !== undefined && (size as ProductSize).price !== null) {
+              sizeObj.price = (size as ProductSize).price
+            }
+            return sizeObj
+          }),
         featured: formData.featured,
         discount_percentage: formData.discount_percentage ? parseFloat(formData.discount_percentage) : null,
         discount_amount: formData.discount_amount ? parseFloat(formData.discount_amount) : null,
@@ -734,7 +757,7 @@ export default function ProductsManagement() {
                             <Input
                               type="number"
                               placeholder="Price (optional)"
-                              value={size.price || ''}
+                              value={(size as ProductSize).price || ''}
                               onChange={(e) => updateSize(index, 'price', parseFloat(e.target.value) || undefined)}
                               className="w-32"
                               min="0"
@@ -1205,7 +1228,7 @@ export default function ProductsManagement() {
                       <Input
                         type="number"
                         placeholder="Price (optional)"
-                        value={size.price || ''}
+                        value={(size as ProductSize).price || ''}
                         onChange={(e) => updateSize(index, 'price', parseFloat(e.target.value) || undefined)}
                         className="w-32"
                         min="0"

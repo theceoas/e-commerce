@@ -34,7 +34,13 @@ import { toast } from 'sonner';
 import { reduceStock, checkStockAvailability } from '@/lib/inventory';
 import { recordPromotionUsage } from '@/lib/promotions';
 import { generateUniqueOrderNumber } from '@/lib/order-utils';
-import { PaystackButton } from 'react-paystack';
+import dynamic from 'next/dynamic';
+
+// Dynamically import PaystackButton to avoid SSR issues
+const PaystackButton = dynamic(
+  () => import('react-paystack').then((mod) => mod.PaystackButton),
+  { ssr: false }
+);
 
 interface CheckoutForm {
   // Contact Info

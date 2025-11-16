@@ -33,7 +33,10 @@ const nextConfig: NextConfig = {
     cssChunking: 'strict',
   },
   compiler: {
-    removeConsole: process.env.NODE_ENV === 'production',
+    // Only remove console in production, but keep console.error and console.warn
+    removeConsole: process.env.NODE_ENV === 'production' ? {
+      exclude: ['error', 'warn'],
+    } : false,
   },
   // Configure for modern browsers to reduce polyfills
   transpilePackages: [],

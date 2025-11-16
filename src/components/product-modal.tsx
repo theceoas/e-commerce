@@ -157,7 +157,9 @@ export default function ProductModal({
   const discountedPrice = useMemo(() => {
     if (!product || !product.has_active_discount) return null
     
-    const priceToDiscount = basePrice
+    const priceToDiscount = basePrice || 0
+    if (priceToDiscount <= 0) return null
+    
     let discount = 0
     
     if (product.discount_percentage) {
@@ -204,7 +206,7 @@ export default function ProductModal({
   useEffect(() => {
     if (images.length > 0 && isOpen) {
       // Preload all images immediately when modal opens with high priority
-      images.forEach((src, index) => {
+      images.forEach((src: string, index: number) => {
         const img = new window.Image()
         img.onload = () => {
           setImagesLoaded(prev => new Set(prev).add(index))
@@ -220,7 +222,7 @@ export default function ProductModal({
       })
       
       // Also preload using link rel="preload" for better browser optimization
-      images.forEach((src, index) => {
+      images.forEach((src: string, index: number) => {
         const link = document.createElement('link')
         link.rel = 'preload'
         link.as = 'image'
