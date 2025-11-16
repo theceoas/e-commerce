@@ -10,6 +10,7 @@ export interface CartItem {
   product_id: string;
   quantity: number;
   size?: string;
+  size_price?: number; // Price for the specific size (for MiniMe products)
   product?: {
     id: string;
     name: string;
@@ -31,7 +32,7 @@ interface CartContextType {
   loading: boolean;
   appliedPromotion: PromotionApplication | null;
   promotionLoading: boolean;
-  addToCart: (productId: string, quantity: number, size?: string) => Promise<void>;
+  addToCart: (productId: string, quantity: number, size?: string, sizePrice?: number) => Promise<void>;
   removeFromCart: (itemId: string) => Promise<void>;
   updateQuantity: (itemId: string, quantity: number) => Promise<void>;
   clearCart: () => Promise<void>;
@@ -71,6 +72,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         .from('cart_items')
         .select(`
           *,
+          size_price,
           product:products_with_discounts(
             id,
             name,
@@ -109,7 +111,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     loadCart();
   }, [user]);
 
-  const addToCart = async (productId: string, quantity: number, size?: string) => {
+  const addToCart = async (productId: string, quantity: number, size?: string, sizePrice?: number) => {
     try {
       // Fetch product stock info to validate before adding
       const { data: productData, error: productError } = await supabase
@@ -167,6 +169,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         quantity,
         size,
       };
+
+      // Store size-specific price if provided (for MiniMe products)
+      if (sizePrice !== undefined && sizePrice !== null) {
+        cartData.size_price = sizePrice;
+      }
 
       if (user) {
         cartData.user_id = user.id;
@@ -295,9 +302,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const getCartTotal = () => {
     return items.reduce((total, item) => {
+      // Use size-specific price if available (for MiniMe products), otherwise use product price
+      const basePrice = item.size_price !== undefined && item.size_price !== null 
+        ? item.size_price 
+        : (item.product?.price || 0);
+      
+      // Apply discount if applicable
       const price = item.product?.has_active_discount && item.product?.discounted_price 
         ? item.product.discounted_price 
-        : (item.product?.price || 0);
+        : basePrice;
+      
       return total + price * item.quantity;
     }, 0);
   };

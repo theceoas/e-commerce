@@ -12,6 +12,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { useParams, useSearchParams } from "next/navigation"
 import { useNavigationCache } from "@/hooks/useNavigationCache"
+import { supabaseCache } from "@/hooks/useSupabaseCache"
 
 // Lazy load components for better performance
 const ProductModal = dynamic(
@@ -68,6 +69,9 @@ export default function BrandPage() {
   }, [])
 
   useEffect(() => {
+    // Only invalidate cache for this specific brand to ensure fresh data
+    // Don't invalidate all featured products as it affects homepage performance
+    supabaseCache.invalidatePattern(`brand-products-${slug}`)
     fetchBrandAndProducts()
   }, [slug])
 
@@ -91,6 +95,8 @@ export default function BrandPage() {
     try {
       // Fetch brand by slug (convert slug back to brand name)
       const brandName = slug.replace(/-/g, ' ')
+      console.log('[BrandPage] Looking for brand with name:', brandName)
+      
       const { data: brandData, error: brandError } = await supabase
         .from('brands')
         .select('*')
@@ -99,27 +105,57 @@ export default function BrandPage() {
         .single()
 
       if (brandError) {
-        console.error('Error fetching brand:', brandError)
+        console.error('[BrandPage] Error fetching brand:', brandError)
         return
       }
 
+      console.log('[BrandPage] Found brand:', brandData)
       setBrand(brandData)
 
-      // Fetch products for this brand
+      // Fetch all products for this brand (including out of stock)
       const { data: productsData, error: productsError } = await supabase
         .from('products_with_discounts')
         .select('*')
         .eq('brand_id', brandData.id)
-        .eq('in_stock', true)
+        .order('created_at', { ascending: false })
 
       if (productsError) {
-        console.error('Error fetching products:', productsError)
+        console.error('[BrandPage] Error fetching products:', productsError)
         return
       }
 
+      console.log(`[BrandPage] Total products found: ${productsData?.length || 0}`)
+      if (productsData && productsData.length > 0) {
+        const inStockCount = productsData.filter(p => p.in_stock).length
+        const outOfStockCount = productsData.length - inStockCount
+        console.log(`[BrandPage] In stock: ${inStockCount}, Out of stock: ${outOfStockCount}`)
+        
+        // Preload first 8 product images for faster display
+        const imageUrls = productsData
+          .slice(0, 8)
+          .map(p => p.thumbnail_url)
+          .filter(Boolean)
+        
+        if (imageUrls.length > 0) {
+          // Preload images in background
+          Promise.all(
+            imageUrls.map(url => {
+              const img = new window.Image()
+              img.src = url
+              img.loading = 'eager'
+              img.fetchPriority = 'high'
+              return new Promise((resolve) => {
+                img.onload = resolve
+                img.onerror = resolve
+              })
+            })
+          ).catch(() => {})
+        }
+      }
+      console.log('[BrandPage] Products to display:', productsData)
       setProducts(productsData || [])
     } catch (error) {
-      console.error('Error:', error)
+      console.error('[BrandPage] Error:', error)
     } finally {
       setLoading(false)
     }
@@ -300,24 +336,55 @@ export default function BrandPage() {
                       setSelectedProduct(product)
                       setIsModalOpen(true)
                     }}
+                    onMouseEnter={() => {
+                      // Preload main product image and additional images on hover
+                      if (product.thumbnail_url) {
+                        const img = new window.Image()
+                        img.src = product.thumbnail_url
+                      }
+                      if (product.additional_images && product.additional_images.length > 0) {
+                        product.additional_images.forEach((src, index) => {
+                          const img = new window.Image()
+                          img.fetchPriority = index <= 1 ? 'high' : 'auto'
+                          img.src = src
+                        })
+                      }
+                    }}
                   >
                     <div className="relative overflow-hidden rounded-lg">
-                      <img
+                      <Image
                         src={product.thumbnail_url || '/images/placeholder.jpg'}
                         alt={product.name}
-                        className="w-full aspect-[9/16] object-cover transition-transform duration-500"
+                        width={300}
+                        height={533}
+                        className={`w-full aspect-[9/16] object-cover transition-transform duration-500 ${!product.in_stock ? 'opacity-60' : ''}`}
+                        sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
+                        priority={index < 8}
+                        loading={index < 8 ? "eager" : "lazy"}
+                        placeholder="blur"
+                        blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R//2Q=="
                       />
-                      <Button
-                        size="sm"
-                        className={`absolute bottom-2 sm:bottom-4 right-2 sm:right-4 ${colors.button} text-white rounded-full w-8 h-8 sm:w-10 sm:h-10 p-0 shadow-lg`}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          // TODO: Add to cart functionality
-                          console.log('Add to cart:', product.id)
-                        }}
-                      >
-                        <Plus className="w-3 h-3 sm:w-5 sm:h-5" />
-                      </Button>
+                      {/* Out of Stock Overlay */}
+                      {!product.in_stock && (
+                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                          <Badge variant="destructive" className="text-xs sm:text-sm font-bold">
+                            Out of Stock
+                          </Badge>
+                        </div>
+                      )}
+                      {product.in_stock && (
+                        <Button
+                          size="sm"
+                          className={`absolute bottom-2 sm:bottom-4 right-2 sm:right-4 ${colors.button} text-white rounded-full w-8 h-8 sm:w-10 sm:h-10 p-0 shadow-lg`}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            // TODO: Add to cart functionality
+                            console.log('Add to cart:', product.id)
+                          }}
+                        >
+                          <Plus className="w-3 h-3 sm:w-5 sm:h-5" />
+                        </Button>
+                      )}
                     </div>
                     <div className="mt-2 sm:mt-4">
                       <h3 className="font-semibold text-black mb-1 sm:mb-2 text-xs sm:text-sm line-clamp-2">{product.name}</h3>

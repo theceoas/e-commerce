@@ -28,6 +28,7 @@ import { BrandGridSkeleton } from "@/components/brand-skeleton"
 import { useBrands, useFeaturedProducts, supabaseCache } from "@/hooks/useSupabaseCache"
 import { useNavigationCache } from "@/hooks/useNavigationCache"
 import { DevImageSpeed } from "@/components/dev-image-speed"
+import { preloadImages } from "@/hooks/useImagePreloader"
 
 // Lazy load the ProductModal component
 const ProductModal = dynamic(
@@ -402,8 +403,23 @@ function KiowaFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
     const name = brand.name.toLowerCase()
     return name === 'kiowa' || name.includes('kiowa')
   })
-  const { data: featuredProductsData, loading } = useFeaturedProducts(kiowaData?.id || '')
+  
+  const { data: featuredProductsData, loading, error } = useFeaturedProducts(kiowaData?.id || '')
   const featuredProducts = featuredProductsData || []
+
+  // Preload product images when they're loaded
+  useEffect(() => {
+    if (featuredProducts.length > 0) {
+      const imageUrls = featuredProducts
+        .slice(0, 4) // Preload first 4 products
+        .map(p => p.thumbnail_url)
+        .filter(Boolean)
+      
+      if (imageUrls.length > 0) {
+        preloadImages(imageUrls).catch(() => {})
+      }
+    }
+  }, [featuredProducts])
 
   return (
     <div className="min-h-screen flex items-center bg-gradient-to-br from-amber-50 to-orange-50 relative py-12 sm:py-20">
@@ -479,19 +495,47 @@ function KiowaFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
                   <div 
                     className="cursor-pointer transition-all duration-300 hover:scale-105"
                     onClick={() => onProductClick(product)}
+                    onMouseEnter={() => {
+                      // Preload main product image and additional images on hover
+                      if (product.thumbnail_url) {
+                        const img = new window.Image()
+                        img.src = product.thumbnail_url
+                      }
+                      if (product.additional_images && product.additional_images.length > 0) {
+                        product.additional_images.forEach((src, index) => {
+                          const img = new window.Image()
+                          img.fetchPriority = index <= 1 ? 'high' : 'auto'
+                          img.src = src
+                        })
+                      }
+                    }}
                   >
                     <div className="relative overflow-hidden rounded-lg">
-                      <img
-                        src={product.thumbnail_url}
-                        alt={product.name}
-                        className="w-full aspect-[9/16] object-cover transition-transform duration-500"
-                      />
-                      {product.has_active_discount && (
-                        <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-md text-xs font-bold shadow-lg">
-                          {product.discount_percentage ? `${product.discount_percentage}% OFF` : `₦${product.discount_amount?.toLocaleString()} OFF`}
-                        </div>
-                      )}
-                    </div>
+                       <Image
+                         src={product.thumbnail_url || '/placeholder-product.jpg'}
+                         alt={product.name}
+                         width={300}
+                         height={533}
+                         className={`w-full aspect-[3/4] sm:aspect-[9/16] object-cover transition-transform duration-500 ${!product.in_stock ? 'opacity-60' : ''}`}
+                         sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
+                         priority={index < 4}
+                         loading={index < 4 ? "eager" : "lazy"}
+                         placeholder="blur"
+                         blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R//2Q=="
+                       />
+                       {product.has_active_discount && (
+                         <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-md text-xs font-bold shadow-lg z-10">
+                           {product.discount_percentage ? `${product.discount_percentage}% OFF` : `₦${product.discount_amount?.toLocaleString()} OFF`}
+                         </div>
+                       )}
+                       {!product.in_stock && (
+                         <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
+                           <Badge variant="destructive" className="text-xs font-bold">
+                             Out of Stock
+                           </Badge>
+                         </div>
+                       )}
+                     </div>
                     <div className="mt-3 sm:mt-4">
                       <h3 className="font-semibold text-black mb-2 text-sm sm:text-base line-clamp-2">{product.name}</h3>
                       <div className="space-y-1">
@@ -525,8 +569,23 @@ function OmegeFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
     const name = brand.name.toLowerCase()
     return name.includes('omoge') || name.includes('ify') || name === 'omogebyify'
   })
-  const { data: featuredProductsData, loading } = useFeaturedProducts(omegeData?.id || '')
+  
+  const { data: featuredProductsData, loading, error } = useFeaturedProducts(omegeData?.id || '')
   const featuredProducts = featuredProductsData || []
+
+  // Preload product images when they're loaded
+  useEffect(() => {
+    if (featuredProducts.length > 0) {
+      const imageUrls = featuredProducts
+        .slice(0, 4) // Preload first 4 products
+        .map(p => p.thumbnail_url)
+        .filter(Boolean)
+      
+      if (imageUrls.length > 0) {
+        preloadImages(imageUrls).catch(() => {})
+      }
+    }
+  }, [featuredProducts])
 
   return (
     <div className="min-h-screen flex items-center bg-gradient-to-br from-red-50 to-pink-50 relative py-12 sm:py-20">
@@ -602,17 +661,44 @@ function OmegeFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
                   <div 
                     className="cursor-pointer transition-all duration-300 hover:scale-105"
                     onClick={() => onProductClick(product)}
+                    onMouseEnter={() => {
+                      // Preload main product image and additional images on hover
+                      if (product.thumbnail_url) {
+                        const img = new window.Image()
+                        img.src = product.thumbnail_url
+                      }
+                      if (product.additional_images && product.additional_images.length > 0) {
+                        product.additional_images.forEach((src, index) => {
+                          const img = new window.Image()
+                          img.fetchPriority = index <= 1 ? 'high' : 'auto'
+                          img.src = src
+                        })
+                      }
+                    }}
                   >
                     <div className="relative overflow-hidden rounded-lg">
-                       <img
-                         src={product.thumbnail_url}
+                       <Image
+                         src={product.thumbnail_url || '/placeholder-product.jpg'}
                          alt={product.name}
-                         className="w-full aspect-[3/4] sm:aspect-[9/16] object-cover transition-transform duration-500"
-                         style={{ aspectRatio: '9/16' }}
+                         width={300}
+                         height={533}
+                         className={`w-full aspect-[3/4] sm:aspect-[9/16] object-cover transition-transform duration-500 ${!product.in_stock ? 'opacity-60' : ''}`}
+                         sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
+                         priority={index < 4}
+                         loading={index < 4 ? "eager" : "lazy"}
+                         placeholder="blur"
+                         blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R//2Q=="
                        />
                        {product.has_active_discount && (
-                         <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-md text-xs font-bold shadow-lg">
+                         <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-md text-xs font-bold shadow-lg z-10">
                            {product.discount_percentage ? `${product.discount_percentage}% OFF` : `₦${product.discount_amount?.toLocaleString()} OFF`}
+                         </div>
+                       )}
+                       {!product.in_stock && (
+                         <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
+                           <Badge variant="destructive" className="text-xs font-bold">
+                             Out of Stock
+                           </Badge>
                          </div>
                        )}
                      </div>
@@ -649,8 +735,23 @@ function MiniMeFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
     const name = brand.name.toLowerCase()
     return name.includes('minime') || name === 'minime' || name.includes('mini me')
   })
-  const { data: featuredProductsData, loading } = useFeaturedProducts(miniMeData?.id || '')
+  
+  const { data: featuredProductsData, loading, error } = useFeaturedProducts(miniMeData?.id || '')
   const featuredProducts = featuredProductsData || []
+
+  // Preload product images when they're loaded
+  useEffect(() => {
+    if (featuredProducts.length > 0) {
+      const imageUrls = featuredProducts
+        .slice(0, 4) // Preload first 4 products
+        .map(p => p.thumbnail_url)
+        .filter(Boolean)
+      
+      if (imageUrls.length > 0) {
+        preloadImages(imageUrls).catch(() => {})
+      }
+    }
+  }, [featuredProducts])
 
   return (
     <div className="min-h-screen flex items-center bg-gradient-to-br from-yellow-50 to-orange-50 relative py-12 sm:py-20">
@@ -725,17 +826,38 @@ function MiniMeFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
                   <div 
                     className="group cursor-pointer transition-all duration-300 hover:scale-105"
                     onClick={() => onProductClick(product)}
+                    onMouseEnter={() => {
+                      // Preload main product image and additional images on hover
+                      if (product.thumbnail_url) {
+                        const img = new window.Image()
+                        img.src = product.thumbnail_url
+                      }
+                      if (product.additional_images && product.additional_images.length > 0) {
+                        product.additional_images.forEach((src, index) => {
+                          const img = new window.Image()
+                          img.fetchPriority = index <= 1 ? 'high' : 'auto'
+                          img.src = src
+                        })
+                      }
+                    }}
                   >
                     <div className="relative overflow-hidden rounded-lg">
                        <img
                          src={product.thumbnail_url}
                          alt={product.name}
-                         className="w-full aspect-[9/16] object-cover transition-transform duration-500"
+                         className={`w-full aspect-[9/16] object-cover transition-transform duration-500 ${!product.in_stock ? 'opacity-60' : ''}`}
                          style={{ aspectRatio: '9/16' }}
                        />
                        {product.has_active_discount && (
-                         <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-md text-xs font-bold shadow-lg">
+                         <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-md text-xs font-bold shadow-lg z-10">
                            {product.discount_percentage ? `${product.discount_percentage}% OFF` : `₦${product.discount_amount?.toLocaleString()} OFF`}
+                         </div>
+                       )}
+                       {!product.in_stock && (
+                         <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
+                           <Badge variant="destructive" className="text-xs font-bold">
+                             Out of Stock
+                           </Badge>
                          </div>
                        )}
                      </div>
@@ -777,22 +899,43 @@ function OthersFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
 
   useEffect(() => {
     const fetchFeaturedProducts = async () => {
-      if (!othersData) return
+      if (!othersData) {
+        setLoading(false)
+        return
+      }
+      
       
       try {
-        const { data, error } = await supabase
+        // First, try to get featured products (including out of stock)
+        let { data, error } = await supabase
           .from('products_with_discounts')
           .select('*')
           .eq('brand_id', othersData.id)
           .eq('featured', true)
-          .eq('in_stock', true)
           .limit(3)
           .order('created_at', { ascending: false })
 
         if (error) throw error
+        
+        
+        // If no featured products, fall back to showing any products (including out of stock)
+        if (!data || data.length === 0) {
+          
+          const fallbackResult = await supabase
+            .from('products_with_discounts')
+            .select('*')
+            .eq('brand_id', othersData.id)
+            .limit(3)
+            .order('created_at', { ascending: false })
+          
+          if (fallbackResult.error) throw fallbackResult.error
+          
+          data = fallbackResult.data || []
+        }
+        
         setFeaturedProducts(data || [])
       } catch (error) {
-        console.error('Error fetching featured products:', error)
+        console.error('[OthersFrame] Error fetching products:', error)
         setFeaturedProducts([])
       } finally {
         setLoading(false)
@@ -874,16 +1017,37 @@ function OthersFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
                   <div 
                     className="cursor-pointer transition-all duration-300 hover:scale-105"
                     onClick={() => onProductClick(product)}
+                    onMouseEnter={() => {
+                      // Preload main product image and additional images on hover
+                      if (product.thumbnail_url) {
+                        const img = new window.Image()
+                        img.src = product.thumbnail_url
+                      }
+                      if (product.additional_images && product.additional_images.length > 0) {
+                        product.additional_images.forEach((src, index) => {
+                          const img = new window.Image()
+                          img.fetchPriority = index <= 1 ? 'high' : 'auto'
+                          img.src = src
+                        })
+                      }
+                    }}
                   >
                     <div className="relative overflow-hidden rounded-lg">
                       <img
                         src={product.thumbnail_url}
                         alt={product.name}
-                        className="w-full aspect-[9/16] object-cover transition-transform duration-500"
+                        className={`w-full aspect-[9/16] object-cover transition-transform duration-500 ${!product.in_stock ? 'opacity-60' : ''}`}
                       />
                       {product.has_active_discount && (
-                        <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-md text-xs font-bold shadow-lg">
+                        <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-md text-xs font-bold shadow-lg z-10">
                           {product.discount_percentage ? `${product.discount_percentage}% OFF` : `₦${product.discount_amount?.toLocaleString()} OFF`}
+                        </div>
+                      )}
+                      {!product.in_stock && (
+                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
+                          <Badge variant="destructive" className="text-xs font-bold">
+                            Out of Stock
+                          </Badge>
                         </div>
                       )}
                     </div>
@@ -986,9 +1150,23 @@ export default function HomePage() {
     import("@/components/product-modal")
   }, [])
 
+  // Don't invalidate cache on page load - let it use cached data for faster loading
+  // Cache will be invalidated naturally when TTL expires or on navigation
+
   useEffect(() => {
-    // Removed aggressive cache clearing to avoid unnecessary refetches after navigation
-  }, [])
+    // Preload critical product images when brands are loaded
+    if (brands.length > 0 && !brandsLoading) {
+      // Preload brand images
+      const brandImages = brands
+        .filter(brand => brand.is_active && brand.image_url)
+        .slice(0, 3)
+        .map(brand => brand.image_url)
+      
+      if (brandImages.length > 0) {
+        preloadImages(brandImages).catch(() => {})
+      }
+    }
+  }, [brands, brandsLoading])
 
   const handleProductClick = (product: any) => {
     setSelectedProduct(product)
@@ -1011,7 +1189,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className="relative min-h-screen scroll-smooth">
+    <div className="relative min-h-screen">
       {/* Mobile Header */}
       <header className="lg:hidden sticky top-0 z-50 w-full bg-yellow-400 shadow-lg">
         <div className="flex items-center justify-between px-4 py-3">
@@ -1086,7 +1264,7 @@ export default function HomePage() {
               </section>
             )
           }
-        })}
+        }).filter(Boolean)}
 
         {/* Footer Section */}
         <section id="footer" className="scroll-mt-20">

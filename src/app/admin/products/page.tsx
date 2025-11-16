@@ -68,6 +68,7 @@ interface Product {
 interface ProductSize {
   size: string
   stock: number
+  price?: number // Optional price per size (for MiniMe brand)
 }
 
 interface Brand {
@@ -263,7 +264,7 @@ export default function ProductsManagement() {
     }))
   }
 
-  const updateSize = (index: number, field: 'size' | 'stock', value: string | number) => {
+  const updateSize = (index: number, field: 'size' | 'stock' | 'price', value: string | number) => {
     setFormData(prev => ({
       ...prev,
       sizes: prev.sizes.map((size, i) => 
@@ -271,6 +272,15 @@ export default function ProductsManagement() {
       )
     }))
   }
+
+  // Check if the selected brand is MiniMe
+  const isMiniMeBrand = useMemo(() => {
+    if (!formData.brand_id || brands.length === 0) return false
+    const selectedBrand = brands.find(b => b.id === formData.brand_id)
+    if (!selectedBrand) return false
+    const brandName = selectedBrand.name.toLowerCase()
+    return brandName.includes('minime') || brandName === 'minime' || brandName.includes('mini me')
+  }, [formData.brand_id, brands])
 
   const handleCreateProduct = async () => {
     try {
@@ -302,7 +312,13 @@ export default function ProductsManagement() {
         additional_images: additionalImages,
         brand_id: formData.brand_id,
         in_stock: formData.in_stock,
-        sizes: formData.sizes.filter(size => size.size.trim() !== ''),
+        sizes: formData.sizes
+          .filter(size => size.size.trim() !== '')
+          .map(size => ({
+            size: size.size,
+            stock: size.stock,
+            ...(size.price !== undefined && size.price !== null && { price: size.price })
+          })),
         featured: formData.featured,
         discount_percentage: formData.discount_percentage ? parseFloat(formData.discount_percentage) : null,
         discount_amount: formData.discount_amount ? parseFloat(formData.discount_amount) : null,
@@ -366,7 +382,13 @@ export default function ProductsManagement() {
         additional_images: allImages,
         brand_id: formData.brand_id,
         in_stock: formData.in_stock,
-        sizes: formData.sizes.filter(size => size.size.trim() !== ''),
+        sizes: formData.sizes
+          .filter(size => size.size.trim() !== '')
+          .map(size => ({
+            size: size.size,
+            stock: size.stock,
+            ...(size.price !== undefined && size.price !== null && { price: size.price })
+          })),
         featured: formData.featured,
         discount_percentage: formData.discount_percentage ? parseFloat(formData.discount_percentage) : null,
         discount_amount: formData.discount_amount ? parseFloat(formData.discount_amount) : null,
@@ -445,6 +467,15 @@ export default function ProductsManagement() {
 
   const openEditDialog = (product: Product) => {
     setEditingProduct(product)
+    // Ensure sizes have price field (for existing products that might not have it)
+    const sizesWithPrice = product.sizes?.length > 0 
+      ? product.sizes.map(size => ({ 
+          size: size.size, 
+          stock: size.stock, 
+          price: (size as any).price || undefined 
+        }))
+      : [{ size: '', stock: 0 }]
+    
     setFormData({
         name: product.name,
         description: product.description,
@@ -453,7 +484,7 @@ export default function ProductsManagement() {
         additional_images: product.additional_images?.length > 0 ? product.additional_images : [''],
         brand_id: product.brand_id,
         in_stock: product.in_stock,
-        sizes: product.sizes?.length > 0 ? product.sizes : [{ size: '', stock: 0 }],
+        sizes: sizesWithPrice,
         featured: product.featured || false,
         discount_percentage: product.discount_percentage?.toString() || '',
         discount_amount: product.discount_amount?.toString() || '',
@@ -678,6 +709,11 @@ export default function ProductsManagement() {
                       </Button>
                     </div>
                     <div className="space-y-2">
+                      {isMiniMeBrand && (
+                        <p className="text-sm text-blue-600 mb-2">
+                          💡 MiniMe products support different prices per size. Leave price empty to use base product price.
+                        </p>
+                      )}
                       {formData.sizes.map((size, index) => (
                         <div key={`size-${index}-${size.size}`} className="flex items-center gap-2">
                           <Input
@@ -694,6 +730,17 @@ export default function ProductsManagement() {
                             className="w-24"
                             min="0"
                           />
+                          {isMiniMeBrand && (
+                            <Input
+                              type="number"
+                              placeholder="Price (optional)"
+                              value={size.price || ''}
+                              onChange={(e) => updateSize(index, 'price', parseFloat(e.target.value) || undefined)}
+                              className="w-32"
+                              min="0"
+                              step="0.01"
+                            />
+                          )}
                           {formData.sizes.length > 1 && (
                             <Button
                               type="button"
@@ -1133,6 +1180,11 @@ export default function ProductsManagement() {
                 </Button>
               </div>
               <div className="space-y-2">
+                {isMiniMeBrand && (
+                  <p className="text-sm text-blue-600 mb-2">
+                    💡 MiniMe products support different prices per size. Leave price empty to use base product price.
+                  </p>
+                )}
                 {formData.sizes.map((size, index) => (
                   <div key={`edit-size-${index}-${size.size}`} className="flex items-center gap-2">
                     <Input
@@ -1149,6 +1201,17 @@ export default function ProductsManagement() {
                       className="w-24"
                       min="0"
                     />
+                    {isMiniMeBrand && (
+                      <Input
+                        type="number"
+                        placeholder="Price (optional)"
+                        value={size.price || ''}
+                        onChange={(e) => updateSize(index, 'price', parseFloat(e.target.value) || undefined)}
+                        className="w-32"
+                        min="0"
+                        step="0.01"
+                      />
+                    )}
                     {formData.sizes.length > 1 && (
                       <Button
                         type="button"

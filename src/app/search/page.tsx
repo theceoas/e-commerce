@@ -90,7 +90,7 @@ export default function SearchPage() {
     try {
       setLoading(true)
       
-      // Fetch products and brands in parallel
+      // Fetch products and brands in parallel (including out of stock products)
       const [productsResult, brandsResult] = await Promise.all([
         supabase
           .from('products_with_discounts')
@@ -100,7 +100,6 @@ export default function SearchPage() {
             discount_percentage, discount_amount, discount_start_date, 
             discount_end_date, discount_active, discounted_price, has_active_discount
           `)
-          .eq('in_stock', true)
           .order('created_at', { ascending: false }),
         
         supabase
@@ -305,6 +304,20 @@ export default function SearchPage() {
                   <Card 
                     className="group cursor-pointer transition-all duration-300 hover:shadow-xl border-0 bg-white/90 backdrop-blur-sm overflow-hidden ring-1 ring-yellow-100 hover:ring-yellow-300"
                     onClick={() => handleProductClick(product)}
+                    onMouseEnter={() => {
+                      // Preload main product image and additional images on hover
+                      if (product.thumbnail_url) {
+                        const img = new window.Image()
+                        img.src = product.thumbnail_url
+                      }
+                      if (product.additional_images && product.additional_images.length > 0) {
+                        product.additional_images.forEach((src, index) => {
+                          const img = new window.Image()
+                          img.fetchPriority = index <= 1 ? 'high' : 'auto'
+                          img.src = src
+                        })
+                      }
+                    }}
                   >
                     <CardContent className="p-0">
                       <div className="relative overflow-hidden">
@@ -364,6 +377,20 @@ export default function SearchPage() {
                   <Card 
                     className="cursor-pointer transition-all duration-300 hover:shadow-lg border-0 bg-white/90 backdrop-blur-sm ring-1 ring-yellow-100 hover:ring-yellow-300"
                     onClick={() => handleProductClick(product)}
+                    onMouseEnter={() => {
+                      // Preload main product image and additional images on hover
+                      if (product.thumbnail_url) {
+                        const img = new window.Image()
+                        img.src = product.thumbnail_url
+                      }
+                      if (product.additional_images && product.additional_images.length > 0) {
+                        product.additional_images.forEach((src, index) => {
+                          const img = new window.Image()
+                          img.fetchPriority = index <= 1 ? 'high' : 'auto'
+                          img.src = src
+                        })
+                      }
+                    }}
                   >
                     <CardContent className="p-4">
                       <div className="flex gap-4">

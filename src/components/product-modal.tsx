@@ -7,6 +7,7 @@ import { Plus, Heart, X, Share2, Copy, Check, ArrowLeft, ArrowRight, ShoppingCar
 import { useCart } from '@/contexts/CartContext'
 import Image from 'next/image'
 import { toast } from 'sonner'
+import { supabase } from '@/lib/supabase'
 
 interface Product {
   id: string
@@ -23,6 +24,7 @@ interface Product {
   sizes?: Array<{
     size: string
     stock: number
+    price?: number // Optional price per size (for MiniMe brand)
   }>
   discount_percentage?: number
   discount_amount?: number
@@ -42,6 +44,14 @@ interface ProductModalProps {
   isFavorite?: boolean
 }
 
+// Helper function to calculate if product has stock
+const hasAvailableStock = (product: Product | null) => {
+  if (!product || !product.sizes || product.sizes.length === 0) {
+    return false;
+  }
+  return product.sizes.some((size: any) => size.stock > 0);
+};
+
 export default function ProductModal({
   product,
   isOpen,
@@ -59,8 +69,105 @@ export default function ProductModal({
   const [touchEnd, setTouchEnd] = useState<number | null>(null)
   const [imagesLoaded, setImagesLoaded] = useState<Set<number>>(new Set())
   const [currentImageLoading, setCurrentImageLoading] = useState(true)
+  const [isMiniMeBrand, setIsMiniMeBrand] = useState(false)
   
   const { addToCart } = useCart()
+
+  // Calculate if product has available stock
+  const isInStock = hasAvailableStock(product);
+
+  // Fetch brand info to check if it's MiniMe
+  useEffect(() => {
+    const fetchBrandInfo = async () => {
+      if (product?.brand_id) {
+        try {
+          const { data, error } = await supabase
+            .from('brands')
+            .select('name')
+            .eq('id', product.brand_id)
+            .single()
+          
+          if (!error && data) {
+            const brandName = data.name.toLowerCase()
+            const isMiniMe = brandName.includes('minime') || brandName.includes('mini me') || brandName === 'minime'
+            setIsMiniMeBrand(isMiniMe)
+            console.log('[ProductModal] Brand:', data.name, 'isMiniMe:', isMiniMe)
+          }
+        } catch (error) {
+          console.error('Error fetching brand info:', error)
+        }
+      } else {
+        setIsMiniMeBrand(false)
+      }
+    }
+    fetchBrandInfo()
+  }, [product?.brand_id])
+
+  // Calculate price based on selected size (for MiniMe products)
+  const displayPrice = useMemo(() => {
+    if (!product) return null
+    
+    // Always start with product price as fallback
+    const baseProductPrice = product.price || 0
+    let priceToUse = baseProductPrice
+    
+    // For MiniMe products, check if size has specific price
+    if (selectedSize && product.sizes && isMiniMeBrand) {
+      const sizeInfo = product.sizes.find(s => s.size === selectedSize)
+      if (sizeInfo && sizeInfo.price !== undefined && sizeInfo.price !== null && sizeInfo.price > 0) {
+        priceToUse = sizeInfo.price
+        console.log('[ProductModal] Using size-specific price:', sizeInfo.price, 'for size:', selectedSize)
+      } else {
+        console.log('[ProductModal] No size-specific price found, using base price:', baseProductPrice)
+      }
+    }
+    
+    // Apply discount if applicable
+    if (product.has_active_discount && priceToUse > 0) {
+      let discount = 0
+      if (product.discount_percentage) {
+        discount = priceToUse * (product.discount_percentage / 100)
+      } else if (product.discount_amount) {
+        discount = product.discount_amount
+      }
+      return Math.max(0, priceToUse - discount)
+    }
+    
+    return priceToUse
+  }, [product, selectedSize, isMiniMeBrand])
+
+  // Calculate base price for discount display (before discount)
+  const basePrice = useMemo(() => {
+    if (!product) return null
+    
+    const baseProductPrice = product.price || 0
+    
+    // If size is selected and product has size-based pricing
+    if (selectedSize && product.sizes && isMiniMeBrand) {
+      const sizeInfo = product.sizes.find(s => s.size === selectedSize)
+      if (sizeInfo?.price !== undefined && sizeInfo.price !== null && sizeInfo.price > 0) {
+        return sizeInfo.price
+      }
+    }
+    
+    return baseProductPrice
+  }, [product, selectedSize, isMiniMeBrand])
+
+  // Calculate discounted price for size-based pricing
+  const discountedPrice = useMemo(() => {
+    if (!product || !product.has_active_discount) return null
+    
+    const priceToDiscount = basePrice
+    let discount = 0
+    
+    if (product.discount_percentage) {
+      discount = priceToDiscount * (product.discount_percentage / 100)
+    } else if (product.discount_amount) {
+      discount = product.discount_amount
+    }
+    
+    return Math.max(0, priceToDiscount - discount)
+  }, [product, basePrice])
 
   // Minimum swipe distance (in px)
   const minSwipeDistance = 50
@@ -77,7 +184,14 @@ export default function ProductModal({
       setSelectedImageIndex(0)
       setSelectedSize('')
       setImagesLoaded(new Set())
-      setCurrentImageLoading(true)
+      
+      // Debug: Log product price info
+      console.log('[ProductModal] Product loaded:', {
+        name: product.name,
+        price: product.price,
+        hasPrice: !!product.price,
+        sizes: product.sizes
+      })
       
       if (typeof window !== 'undefined') {
         const url = `${window.location.origin}${window.location.pathname}?product=${product.id}`
@@ -86,57 +200,85 @@ export default function ProductModal({
     }
   }, [product])
 
-  // Preload images for better performance
+  // Preload all images aggressively when modal opens
   useEffect(() => {
     if (images.length > 0 && isOpen) {
-      // Preload all images immediately when modal opens
+      // Preload all images immediately when modal opens with high priority
       images.forEach((src, index) => {
-        if (index === 0) return // Skip first image as it's already loading
-        
         const img = new window.Image()
         img.onload = () => {
           setImagesLoaded(prev => new Set(prev).add(index))
         }
         img.onerror = () => {
-          console.warn(`Failed to preload image: ${src}`)
+          // Still mark as "loaded" to prevent blocking
+          setImagesLoaded(prev => new Set(prev).add(index))
         }
-        // Set high priority for next image, normal for others
-        img.fetchPriority = index === 1 ? 'high' : 'auto'
+        // Set high priority for all images in modal
+        img.fetchPriority = 'high'
+        img.loading = 'eager'
         img.src = src
+      })
+      
+      // Also preload using link rel="preload" for better browser optimization
+      images.forEach((src, index) => {
+        const link = document.createElement('link')
+        link.rel = 'preload'
+        link.as = 'image'
+        link.href = src
+        link.fetchPriority = 'high'
+        document.head.appendChild(link)
+        
+        // Clean up after a delay
+        setTimeout(() => {
+          if (document.head.contains(link)) {
+            document.head.removeChild(link)
+          }
+        }, 10000)
       })
     }
   }, [images, isOpen])
 
-  // Update loading state when image changes
+  // Update loading state when image changes - but don't block modal
   useEffect(() => {
-    setCurrentImageLoading(true)
-  }, [selectedImageIndex])
+    // Only show loading spinner if image isn't already loaded
+    const isLoaded = imagesLoaded.has(selectedImageIndex)
+    setCurrentImageLoading(!isLoaded)
+    
+    // If not loaded, give it a short timeout before showing spinner (prevents flash)
+    if (!isLoaded) {
+      const timer = setTimeout(() => {
+        setCurrentImageLoading(true)
+      }, 100)
+      return () => clearTimeout(timer)
+    } else {
+      setCurrentImageLoading(false)
+    }
+  }, [selectedImageIndex, imagesLoaded])
 
-  // Preload adjacent images when navigating
+  // Aggressively preload adjacent images when navigating
   useEffect(() => {
     if (images.length > 1 && isOpen) {
       const prevIndex = selectedImageIndex > 0 ? selectedImageIndex - 1 : images.length - 1
       const nextIndex = selectedImageIndex < images.length - 1 ? selectedImageIndex + 1 : 0
       
-      // Preload previous image
-      if (!imagesLoaded.has(prevIndex) && prevIndex !== selectedImageIndex) {
-        const img = new window.Image()
-        img.onload = () => {
-          setImagesLoaded(prev => new Set(prev).add(prevIndex))
+      // Preload previous and next images with high priority
+      const indicesToPreload = [prevIndex, nextIndex]
+      indicesToPreload.forEach((index) => {
+        if (index !== selectedImageIndex && images[index]) {
+          const img = new window.Image()
+          img.fetchPriority = 'high'
+          img.loading = 'eager'
+          img.onload = () => {
+            setImagesLoaded(prev => new Set(prev).add(index))
+          }
+          img.onerror = () => {
+            setImagesLoaded(prev => new Set(prev).add(index))
+          }
+          img.src = images[index]
         }
-        img.src = images[prevIndex]
-      }
-      
-      // Preload next image
-      if (!imagesLoaded.has(nextIndex) && nextIndex !== selectedImageIndex) {
-        const img = new window.Image()
-        img.onload = () => {
-          setImagesLoaded(prev => new Set(prev).add(nextIndex))
-        }
-        img.src = images[nextIndex]
-      }
+      })
     }
-  }, [selectedImageIndex, images, isOpen, imagesLoaded])
+  }, [selectedImageIndex, images, isOpen])
 
   useEffect(() => {
     // Prevent body scroll when modal is open
@@ -161,13 +303,27 @@ export default function ProductModal({
     if (images.length <= 1) return
     
     setSelectedImageIndex(prev => {
-      if (direction === 'next') {
-        return prev < images.length - 1 ? prev + 1 : 0
-      } else {
-        return prev > 0 ? prev - 1 : images.length - 1
+      const newIndex = direction === 'next' 
+        ? (prev < images.length - 1 ? prev + 1 : 0)
+        : (prev > 0 ? prev - 1 : images.length - 1)
+      
+      // Preload the target image immediately before switching
+      if (images[newIndex] && !imagesLoaded.has(newIndex)) {
+        const img = new window.Image()
+        img.fetchPriority = 'high'
+        img.loading = 'eager'
+        img.src = images[newIndex]
+        img.onload = () => {
+          setImagesLoaded(prevLoaded => new Set(prevLoaded).add(newIndex))
+        }
+        img.onerror = () => {
+          setImagesLoaded(prevLoaded => new Set(prevLoaded).add(newIndex))
+        }
       }
+      
+      return newIndex
     })
-  }, [images.length])
+  }, [images, imagesLoaded])
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key === 'Escape') {
@@ -247,14 +403,23 @@ export default function ProductModal({
     
     setIsAddingToCart(true)
     try {
-      await addToCart(product.id, 1, selectedSize || undefined)
+      // Calculate size-specific price if applicable
+      let sizePrice: number | undefined = undefined
+      if (selectedSize && product.sizes && isMiniMeBrand) {
+        const sizeInfo = product.sizes.find(s => s.size === selectedSize)
+        if (sizeInfo?.price !== undefined && sizeInfo.price !== null) {
+          sizePrice = sizeInfo.price
+        }
+      }
+      
+      await addToCart(product.id, 1, selectedSize || undefined, sizePrice)
       toast.success(`${product.name} added to cart!`)
       
       // Also call the optional onAddToCart prop for backward compatibility
       onAddToCart?.(product)
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding to cart:', error)
-      toast.error('Failed to add item to cart. Please try again.')
+      toast.error(error.message || 'Failed to add item to cart. Please try again.')
     } finally {
       setIsAddingToCart(false)
     }
@@ -289,23 +454,31 @@ export default function ProductModal({
           >
             <div className="relative">
               {currentImageLoading && (
-                <div className="absolute inset-0 bg-gray-100 animate-pulse flex items-center justify-center">
-                  <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                <div className="absolute inset-0 bg-gray-50/80 backdrop-blur-sm flex items-center justify-center z-10">
+                  <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
                 </div>
               )}
               <Image
+                key={`${product.id}-${selectedImageIndex}`}
                 src={images[selectedImageIndex] || '/images/placeholder.jpg'}
-                alt={product.name}
+                alt={`${product.name} - Image ${selectedImageIndex + 1}`}
                 width={800}
                 height={800}
-                className="max-w-full max-h-full object-contain transition-all duration-300 shadow-2xl select-none"
+                className="max-w-full max-h-full object-contain transition-opacity duration-200 shadow-2xl select-none"
                 sizes="(max-width: 768px) 100vw, 50vw"
-                priority={selectedImageIndex === 0}
-                loading={selectedImageIndex === 0 ? 'eager' : 'lazy'}
+                priority={true}
+                loading="eager"
+                quality={90}
                 placeholder="blur"
-                blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R//2Q=="
-                onLoad={() => setCurrentImageLoading(false)}
-                onLoadStart={() => setCurrentImageLoading(true)}
+                blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R//2Q=="
+                onLoad={() => {
+                  setCurrentImageLoading(false)
+                  setImagesLoaded(prev => new Set(prev).add(selectedImageIndex))
+                }}
+                onError={() => {
+                  setCurrentImageLoading(false)
+                  setImagesLoaded(prev => new Set(prev).add(selectedImageIndex))
+                }}
               />
             </div>
             
@@ -387,19 +560,68 @@ export default function ProductModal({
             <div>
               <h1 className="text-lg md:text-2xl lg:text-3xl font-bold text-gray-900 mb-2 leading-tight">{product.name}</h1>
               <div className="flex items-center gap-2 md:gap-3 flex-wrap">
-                {product.has_active_discount && product.discounted_price ? (
-                  <>
-                    <p className="text-xl md:text-3xl lg:text-4xl font-bold text-red-600">₦{product.discounted_price.toLocaleString()}</p>
-                    <p className="text-sm md:text-xl text-gray-500 line-through">₦{product.price.toLocaleString()}</p>
-                    <Badge variant="destructive" className="text-xs md:text-sm">
-                      {product.discount_percentage 
-                        ? `${product.discount_percentage}% OFF`
-                        : `₦${product.discount_amount?.toLocaleString()} OFF`
-                      }
-                    </Badge>
-                  </>
-                ) : (
-                  <p className="text-xl md:text-3xl lg:text-4xl font-bold text-blue-600">₦{product.price.toLocaleString()}</p>
+                {(() => {
+                  // Always use product.price as the base - it's always available from the product object
+                  const productPrice = product.price || 0
+                  
+                  // Get calculated prices, but fallback to productPrice if null/undefined/0
+                  const calculatedDisplayPrice = (displayPrice !== null && displayPrice !== undefined && displayPrice > 0) 
+                    ? displayPrice 
+                    : productPrice
+                  const calculatedBasePrice = (basePrice !== null && basePrice !== undefined && basePrice > 0)
+                    ? basePrice
+                    : productPrice
+                  
+                  // Final prices to display
+                  const finalPrice = calculatedDisplayPrice > 0 ? calculatedDisplayPrice : productPrice
+                  const finalBasePrice = calculatedBasePrice > 0 ? calculatedBasePrice : productPrice
+                  
+                  // Debug log
+                  console.log('[ProductModal] Price calculation:', {
+                    productPrice,
+                    displayPrice,
+                    basePrice,
+                    calculatedDisplayPrice,
+                    calculatedBasePrice,
+                    finalPrice,
+                    finalBasePrice,
+                    hasDiscount: product.has_active_discount,
+                    discountedPrice
+                  })
+                  
+                  // Always show price, even if it's 0
+                  if (product.has_active_discount && discountedPrice) {
+                    return (
+                      <>
+                        <p className="text-xl md:text-3xl lg:text-4xl font-bold text-red-600">
+                          ₦{finalPrice.toLocaleString()}
+                        </p>
+                        <p className="text-sm md:text-xl text-gray-500 line-through">
+                          ₦{finalBasePrice.toLocaleString()}
+                        </p>
+                        <Badge variant="destructive" className="text-xs md:text-sm">
+                          {product.discount_percentage 
+                            ? `${product.discount_percentage}% OFF`
+                            : `₦${product.discount_amount?.toLocaleString()} OFF`
+                          }
+                        </Badge>
+                      </>
+                    )
+                  } else {
+                    return (
+                      <p className="text-xl md:text-3xl lg:text-4xl font-bold text-blue-600">
+                        ₦{finalPrice.toLocaleString()}
+                      </p>
+                    )
+                  }
+                })()}
+                {isMiniMeBrand && selectedSize && product.sizes && (
+                  <p className="text-xs md:text-sm text-gray-500">
+                    {product.sizes.find(s => s.size === selectedSize)?.price !== undefined 
+                      ? `Price for size ${selectedSize}`
+                      : `Base price (size ${selectedSize})`
+                    }
+                  </p>
                 )}
               </div>
             </div>
@@ -425,34 +647,48 @@ export default function ProductModal({
               <div>
                 <h3 className="font-semibold text-gray-900 mb-3 md:mb-4 text-base md:text-lg">Size</h3>
                 <div className="grid grid-cols-3 gap-2 md:gap-3">
-                  {product.sizes.map((sizeOption) => (
-                    <button
-                      key={sizeOption.size}
-                      onClick={() => setSelectedSize(sizeOption.size)}
-                      disabled={sizeOption.stock === 0}
-                      className={`px-2 md:px-4 py-2 md:py-3 border-2 rounded-lg transition-all font-medium text-sm md:text-base ${
-                        selectedSize === sizeOption.size
-                          ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-md'
-                          : sizeOption.stock === 0
-                          ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
-                          : 'border-gray-300 hover:border-gray-400 hover:shadow-sm'
-                      }`}
-                    >
-                      {sizeOption.size}
-                      {sizeOption.stock === 0 && (
-                        <div className="text-xs mt-1">Out of Stock</div>
-                      )}
-                    </button>
-                  ))}
+                  {product.sizes.map((sizeOption) => {
+                    const sizePrice = isMiniMeBrand && sizeOption.price !== undefined && sizeOption.price !== null
+                      ? sizeOption.price
+                      : product.price
+                    const sizeDisplayPrice = product.has_active_discount && product.discounted_price
+                      ? product.discounted_price
+                      : sizePrice
+                    
+                    return (
+                      <button
+                        key={sizeOption.size}
+                        onClick={() => setSelectedSize(sizeOption.size)}
+                        disabled={sizeOption.stock === 0}
+                        className={`px-2 md:px-4 py-2 md:py-3 border-2 rounded-lg transition-all font-medium text-sm md:text-base ${
+                          selectedSize === sizeOption.size
+                            ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-md'
+                            : sizeOption.stock === 0
+                            ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
+                            : 'border-gray-300 hover:border-gray-400 hover:shadow-sm'
+                        }`}
+                      >
+                        <div className="flex flex-col items-center">
+                          <span>{sizeOption.size}</span>
+                          {isMiniMeBrand && sizeOption.price !== undefined && sizeOption.price !== null && (
+                            <span className="text-xs mt-1 font-semibold">₦{sizeDisplayPrice.toLocaleString()}</span>
+                          )}
+                          {sizeOption.stock === 0 && (
+                            <div className="text-xs mt-1">Out of Stock</div>
+                          )}
+                        </div>
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
             )}
 
             {/* Stock Status */}
             <div className="flex items-center gap-2 md:gap-3 p-3 md:p-4 bg-gray-50 rounded-lg">
-              <div className={`w-2 h-2 md:w-3 md:h-3 rounded-full ${product.in_stock ? 'bg-green-500' : 'bg-red-500'}`} />
-              <span className={`text-sm md:text-lg font-medium ${product.in_stock ? 'text-green-600' : 'text-red-600'}`}>
-                {product.in_stock ? 'In Stock' : 'Out of Stock'}
+              <div className={`w-2 h-2 md:w-3 md:h-3 rounded-full ${isInStock ? 'bg-green-500' : 'bg-red-500'}`} />
+              <span className={`text-sm md:text-lg font-medium ${isInStock ? 'text-green-600' : 'text-red-600'}`}>
+                {isInStock ? 'In Stock' : 'Out of Stock'}
               </span>
             </div>
           </div>
@@ -461,7 +697,7 @@ export default function ProductModal({
           <div className="p-4 md:p-6 border-t bg-white space-y-3 md:space-y-4">
             <Button
               onClick={handleAddToCart}
-              disabled={!product.in_stock || (product.sizes && product.sizes.length > 0 && !selectedSize) || isAddingToCart}
+              disabled={!isInStock || (product.sizes && product.sizes.length > 0 && !selectedSize) || isAddingToCart}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 md:py-4 text-base md:text-lg font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
             >
               {isAddingToCart ? (

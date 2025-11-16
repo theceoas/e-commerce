@@ -167,10 +167,32 @@ export default function CartPage() {
                         {item.product?.name || 'Product'}
                       </h3>
                       <p className="text-2xl font-bold text-yellow-600 mt-1">
-                        ₦{((item.product?.price || 0) * item.quantity).toLocaleString()}
+                        {(() => {
+                          // Use size-specific price if available (for MiniMe products)
+                          const basePrice = (item as any).size_price !== undefined && (item as any).size_price !== null
+                            ? (item as any).size_price
+                            : (item.product?.price || 0)
+                          
+                          const price = item.product?.has_active_discount && item.product?.discounted_price
+                            ? item.product.discounted_price
+                            : basePrice
+                          
+                          return `₦${(price * item.quantity).toLocaleString()}`
+                        })()}
                       </p>
                       <p className="text-sm text-yellow-500">
-                        ₦{(item.product?.price || 0).toLocaleString()} each
+                        {(() => {
+                          // Use size-specific price if available
+                          const basePrice = (item as any).size_price !== undefined && (item as any).size_price !== null
+                            ? (item as any).size_price
+                            : (item.product?.price || 0)
+                          
+                          const price = item.product?.has_active_discount && item.product?.discounted_price
+                            ? item.product.discounted_price
+                            : basePrice
+                          
+                          return `₦${price.toLocaleString()} each`
+                        })()}
                       </p>
                       {item.size && (
                         <Badge variant="outline" className="mt-2">

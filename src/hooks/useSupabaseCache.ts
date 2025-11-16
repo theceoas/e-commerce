@@ -87,7 +87,7 @@ export function useSupabaseCache<T>(
   } = options
   
   const [data, setData] = useState<T | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!enabled) // Start as not loading if disabled
   const [error, setError] = useState<Error | null>(null)
   const [retryCount, setRetryCount] = useState(0)
 
@@ -95,6 +95,7 @@ export function useSupabaseCache<T>(
     // If disabled, immediately end loading and do nothing
     if (!enabled) {
       setLoading(false)
+      setData(null)
       return null
     }
 
@@ -106,6 +107,7 @@ export function useSupabaseCache<T>(
       if (!forceRefresh) {
         const cachedData = cache.get<T>(key)
         if (cachedData) {
+          // Show cached data immediately for fast display
           setData(cachedData)
           setLoading(false)
           return cachedData
@@ -156,20 +158,14 @@ export function useSupabaseCache<T>(
     // If disabled, ensure loading is false and skip fetching
     if (!enabled) {
       setLoading(false)
+      setData(null)
       return
     }
 
-    if (refetchOnMount || !cache.get(key)) {
-      fetchData()
-    } else {
-      // Use cached data immediately
-      const cachedData = cache.get<T>(key)
-      if (cachedData) {
-        setData(cachedData)
-        setLoading(false)
-      }
-    }
-  }, [key, fetchData, refetchOnMount, enabled])
+    // Always fetch when key or enabled changes (e.g., when brandId changes from empty to a value)
+    // This ensures we get fresh data when the query parameters change
+    fetchData(refetchOnMount)
+  }, [key, enabled, fetchData, refetchOnMount])
 
   return {
     data,
@@ -207,21 +203,51 @@ export function useFeaturedProducts(brandId: string) {
   return useSupabaseCache(
     `featured-products-${brandId}`,
     async () => {
-      const { data, error } = await supabase
+      console.log(`[useFeaturedProducts] Fetching products for brandId: ${brandId}`)
+      
+      // First, try to get featured products (including out of stock)
+      let { data, error } = await supabase
         .from('products_with_discounts')
         .select('*')
         .eq('brand_id', brandId)
         .eq('featured', true)
-        .eq('in_stock', true)
         .limit(3)
         .order('created_at', { ascending: false })
 
-      if (error) throw error
+      if (error) {
+        console.error(`[useFeaturedProducts] Error fetching featured products for brandId ${brandId}:`, error)
+        throw error
+      }
+      
+      console.log(`[useFeaturedProducts] Found ${data?.length || 0} featured products for brandId ${brandId}`)
+      
+      // If no featured products, fall back to showing any products (including out of stock)
+      if (!data || data.length === 0) {
+        console.log(`[useFeaturedProducts] No featured products found, fetching any products for brandId ${brandId}`)
+        
+        const fallbackResult = await supabase
+          .from('products_with_discounts')
+          .select('*')
+          .eq('brand_id', brandId)
+          .limit(3)
+          .order('created_at', { ascending: false })
+        
+        if (fallbackResult.error) {
+          console.error(`[useFeaturedProducts] Error fetching fallback products for brandId ${brandId}:`, fallbackResult.error)
+          throw fallbackResult.error
+        }
+        
+        data = fallbackResult.data || []
+        console.log(`[useFeaturedProducts] Found ${data.length} fallback products for brandId ${brandId}`)
+      }
+      
+      console.log(`[useFeaturedProducts] Returning ${data?.length || 0} products for brandId ${brandId}`, data)
       return data || []
     },
     { 
       ttl: 3 * 60 * 1000, // 3 minutes for products
-      enabled: !!brandId 
+      enabled: !!brandId,
+      refetchOnMount: false // Don't force refetch on mount, but will refetch when key changes
     }
   )
 }
@@ -242,7 +268,6 @@ export function useBrandProducts(brandSlug: string) {
         .from('products_with_discounts')
         .select('*')
         .eq('brand_id', brand.id)
-        .eq('in_stock', true)
         .order('created_at', { ascending: false })
 
       if (productsError) throw productsError
@@ -250,7 +275,8 @@ export function useBrandProducts(brandSlug: string) {
     },
     { 
       ttl: 3 * 60 * 1000, // 3 minutes for products
-      enabled: !!brandSlug 
+      enabled: !!brandSlug,
+      refetchOnMount: true // Always refetch to ensure fresh data
     }
   )
 }

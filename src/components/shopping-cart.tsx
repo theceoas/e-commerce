@@ -27,7 +27,18 @@ export function ShoppingCart({
   onCheckout
 }: ShoppingCartProps) {
   const totalAmount = cartItems.reduce(
-    (total, item) => total + ((item.product.has_active_discount && item.product.discounted_price ? item.product.discounted_price : item.product.price) * item.quantity),
+    (total, item) => {
+      // Use size-specific price if available (for MiniMe products), otherwise use product price
+      const basePrice = (item as any).size_price !== undefined && (item as any).size_price !== null
+        ? (item as any).size_price
+        : item.product.price
+      
+      const price = item.product.has_active_discount && item.product.discounted_price 
+        ? item.product.discounted_price 
+        : basePrice
+      
+      return total + (price * item.quantity)
+    },
     0
   )
 
@@ -74,14 +85,25 @@ export function ShoppingCart({
                         {item.product.name}
                       </h4>
                       <div className="text-sm text-muted-foreground">
-                        {item.product.has_active_discount && item.product.discounted_price ? (
-                          <div className="flex items-center gap-2">
-                            <span>₦{item.product.discounted_price.toLocaleString()} each</span>
-                            <span className="line-through text-xs">₦{item.product.price.toLocaleString()}</span>
-                          </div>
-                        ) : (
-                          <span>₦{item.product.price.toLocaleString()} each</span>
-                        )}
+                        {(() => {
+                          // Use size-specific price if available
+                          const basePrice = (item as any).size_price !== undefined && (item as any).size_price !== null
+                            ? (item as any).size_price
+                            : item.product.price
+                          
+                          const displayPrice = item.product.has_active_discount && item.product.discounted_price
+                            ? item.product.discounted_price
+                            : basePrice
+                          
+                          return item.product.has_active_discount && item.product.discounted_price ? (
+                            <div className="flex items-center gap-2">
+                              <span>₦{displayPrice.toLocaleString()} each</span>
+                              <span className="line-through text-xs">₦{basePrice.toLocaleString()}</span>
+                            </div>
+                          ) : (
+                            <span>₦{displayPrice.toLocaleString()} each</span>
+                          )
+                        })()}
                       </div>
                       <div className="flex items-center gap-2">
                         <Button
@@ -116,7 +138,18 @@ export function ShoppingCart({
                     
                     <div className="text-right">
                       <p className="font-medium">
-                        ₦{((item.product.has_active_discount && item.product.discounted_price ? item.product.discounted_price : item.product.price) * item.quantity).toLocaleString()}
+                        {(() => {
+                          // Use size-specific price if available
+                          const basePrice = (item as any).size_price !== undefined && (item as any).size_price !== null
+                            ? (item as any).size_price
+                            : item.product.price
+                          
+                          const price = item.product.has_active_discount && item.product.discounted_price
+                            ? item.product.discounted_price
+                            : basePrice
+                          
+                          return `₦${(price * item.quantity).toLocaleString()}`
+                        })()}
                       </p>
                     </div>
                   </div>
