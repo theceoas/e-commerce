@@ -186,12 +186,20 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         .insert(cartData)
         .select(`
           *,
-          product:products(
+          size_price,
+          product:products_with_discounts(
             id,
             name,
             price,
             thumbnail_url,
-            brand_id
+            brand_id,
+            discount_percentage,
+            discount_amount,
+            discount_active,
+            discount_start_date,
+            discount_end_date,
+            discounted_price,
+            has_active_discount
           )
         `)
         .single();

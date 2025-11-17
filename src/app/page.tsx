@@ -842,11 +842,17 @@ function MiniMeFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
                     }}
                   >
                     <div className="relative overflow-hidden rounded-lg">
-                       <img
-                         src={product.thumbnail_url}
+                       <Image
+                         src={product.thumbnail_url || '/placeholder-product.jpg'}
                          alt={product.name}
-                         className={`w-full aspect-[9/16] object-cover transition-transform duration-500 ${!product.in_stock ? 'opacity-60' : ''}`}
-                         style={{ aspectRatio: '9/16' }}
+                         width={300}
+                         height={533}
+                         className={`w-full aspect-[3/4] sm:aspect-[9/16] object-cover transition-transform duration-500 ${!product.in_stock ? 'opacity-60' : ''}`}
+                         sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
+                         priority={index < 4}
+                         loading={index < 4 ? "eager" : "lazy"}
+                         placeholder="blur"
+                         blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R//2Q=="
                        />
                        {product.has_active_discount && (
                          <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-md text-xs font-bold shadow-lg z-10">
@@ -889,61 +895,28 @@ function MiniMeFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
 }
 
 function OthersFrame({ brands, onProductClick }: { brands: Brand[]; onProductClick: (product: any) => void }) {
-  const [featuredProducts, setFeaturedProducts] = useState<Product[]>([])
-  const [loading, setLoading] = useState(true)
-  
   // Use the first brand passed in (for dynamic rendering) - this will be the FavoriteThings brand
   const othersData = brands.length === 1 ? brands[0] : brands.find(brand => 
     brand.name.toLowerCase().includes('favoritethings') || brand.name.toLowerCase().includes('favorite')
   )
 
-  useEffect(() => {
-    const fetchFeaturedProducts = async () => {
-      if (!othersData) {
-        setLoading(false)
-        return
-      }
-      
-      
-      try {
-        // First, try to get featured products (including out of stock)
-        let { data, error } = await supabase
-          .from('products_with_discounts')
-          .select('*')
-          .eq('brand_id', othersData.id)
-          .eq('featured', true)
-          .limit(3)
-          .order('created_at', { ascending: false })
+  // Use the same optimized hook as KiowaFrame for caching and better performance
+  const { data: featuredProductsData, loading, error } = useFeaturedProducts(othersData?.id || '')
+  const featuredProducts = featuredProductsData || []
 
-        if (error) throw error
-        
-        
-        // If no featured products, fall back to showing any products (including out of stock)
-        if (!data || data.length === 0) {
-          
-          const fallbackResult = await supabase
-            .from('products_with_discounts')
-            .select('*')
-            .eq('brand_id', othersData.id)
-            .limit(3)
-            .order('created_at', { ascending: false })
-          
-          if (fallbackResult.error) throw fallbackResult.error
-          
-          data = fallbackResult.data || []
-        }
-        
-        setFeaturedProducts(data || [])
-      } catch (error) {
-        console.error('[OthersFrame] Error fetching products:', error)
-        setFeaturedProducts([])
-      } finally {
-        setLoading(false)
+  // Preload product images when they're loaded
+  useEffect(() => {
+    if (featuredProducts.length > 0) {
+      const imageUrls = featuredProducts
+        .slice(0, 4) // Preload first 4 products
+        .map(p => p.thumbnail_url)
+        .filter(Boolean)
+      
+      if (imageUrls.length > 0) {
+        preloadImages(imageUrls).catch(() => {})
       }
     }
-
-    fetchFeaturedProducts()
-  }, [othersData])
+  }, [featuredProducts])
 
   return (
     <div className="min-h-screen flex items-center bg-gradient-to-br from-purple-50 to-indigo-50 relative py-12 sm:py-20">
@@ -957,10 +930,13 @@ function OthersFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
           >
 
             {othersData?.image_url ? (
-              <img
+              <Image
                 src={othersData.image_url}
                 alt={`${othersData.name} Hero`}
+                width={800}
+                height={500}
                 className="w-full h-64 sm:h-80 lg:h-96 xl:h-[500px] object-cover rounded-2xl shadow-2xl"
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 80vw, 800px"
               />
             ) : (
               <div className="w-full h-64 sm:h-80 lg:h-96 xl:h-[500px] bg-gray-200 rounded-2xl shadow-2xl animate-pulse"></div>
@@ -1033,10 +1009,17 @@ function OthersFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
                     }}
                   >
                     <div className="relative overflow-hidden rounded-lg">
-                      <img
-                        src={product.thumbnail_url}
+                      <Image
+                        src={product.thumbnail_url || '/placeholder-product.jpg'}
                         alt={product.name}
-                        className={`w-full aspect-[9/16] object-cover transition-transform duration-500 ${!product.in_stock ? 'opacity-60' : ''}`}
+                        width={300}
+                        height={533}
+                        className={`w-full aspect-[3/4] sm:aspect-[9/16] object-cover transition-transform duration-500 ${!product.in_stock ? 'opacity-60' : ''}`}
+                        sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
+                        priority={index < 4}
+                        loading={index < 4 ? "eager" : "lazy"}
+                        placeholder="blur"
+                        blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R//2Q=="
                       />
                       {product.has_active_discount && (
                         <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-md text-xs font-bold shadow-lg z-10">

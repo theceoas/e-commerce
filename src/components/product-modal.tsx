@@ -91,28 +91,17 @@ export default function ProductModal({
             const brandName = data.name.toLowerCase()
             const isMiniMe = brandName.includes('minime') || brandName.includes('mini me') || brandName === 'minime'
             setIsMiniMeBrand(isMiniMe)
-            console.log('[ProductModal] Brand detection:', {
-              brandName: data.name,
-              brandNameLower: brandName,
-              isMiniMe,
-              productId: product.id,
-              productName: product.name,
-              sizes: product.sizes,
-              sizesWithPrices: product.sizes?.map(s => ({ size: s.size, price: s.price }))
-            })
-          } else {
-            console.error('[ProductModal] Error fetching brand:', error)
+            console.log('[ProductModal] Brand:', data.name, 'isMiniMe:', isMiniMe)
           }
         } catch (error) {
-          console.error('[ProductModal] Error fetching brand info:', error)
+          console.error('Error fetching brand info:', error)
         }
       } else {
         setIsMiniMeBrand(false)
-        console.log('[ProductModal] No brand_id, setting isMiniMeBrand to false')
       }
     }
     fetchBrandInfo()
-  }, [product?.brand_id, product?.id])
+  }, [product?.brand_id])
 
   // Calculate price based on selected size (for MiniMe products)
   const displayPrice = useMemo(() => {
@@ -122,23 +111,46 @@ export default function ProductModal({
     const baseProductPrice = product.price || 0
     let priceToUse = baseProductPrice
     
-    // For MiniMe products, check if size has specific price
-    if (selectedSize && product.sizes && isMiniMeBrand) {
-      const sizeInfo = product.sizes.find(s => s.size === selectedSize)
-      console.log('[ProductModal] Size selection debug:', {
-        selectedSize,
-        isMiniMeBrand,
-        sizes: product.sizes,
-        sizeInfo,
-        sizeInfoPrice: sizeInfo?.price,
-        baseProductPrice
-      })
-      
-      if (sizeInfo && sizeInfo.price !== undefined && sizeInfo.price !== null && sizeInfo.price > 0) {
-        priceToUse = sizeInfo.price
-        console.log('[ProductModal] ✅ Using size-specific price:', sizeInfo.price, 'for size:', selectedSize)
+    // Check if any sizes have prices - don't wait for brand detection
+    // This is important because brand check is async and might not be ready initially
+    if (product.sizes && product.sizes.length > 0) {
+      // If a size is selected, prioritize that size's price
+      if (selectedSize) {
+        const sizeInfo = product.sizes.find(s => s.size === selectedSize)
+        console.log('[ProductModal] displayPrice calculation:', {
+          selectedSize,
+          sizeInfo,
+          sizePrice: sizeInfo?.price,
+          baseProductPrice,
+          isMiniMeBrand,
+          allSizes: product.sizes?.map(s => ({ size: s.size, price: (s as any).price }))
+        })
+        if (sizeInfo && (sizeInfo as any).price !== undefined && (sizeInfo as any).price !== null && (sizeInfo as any).price > 0) {
+          priceToUse = (sizeInfo as any).price
+          console.log('[ProductModal] ✅ Using size-specific price:', priceToUse, 'for size:', selectedSize)
+        } else if (baseProductPrice === 0) {
+          // If selected size has no price and base is 0, try to find any size with price
+          const sizeWithPrice = product.sizes.find((s: any) => {
+            const price = (s as any).price
+            return price !== undefined && price !== null && price > 0
+          })
+          if (sizeWithPrice) {
+            priceToUse = (sizeWithPrice as any).price
+            console.log('[ProductModal] Using fallback size price:', priceToUse, 'from size:', sizeWithPrice.size)
+          }
+        }
       } else {
-        console.log('[ProductModal] ⚠️ No size-specific price found for size:', selectedSize, 'SizeInfo:', sizeInfo, 'Using base price:', baseProductPrice)
+        // No size selected yet - if base price is 0, try to find first size with price
+        if (baseProductPrice === 0) {
+          const sizeWithPrice = product.sizes.find((s: any) => {
+            const price = (s as any).price
+            return price !== undefined && price !== null && price > 0
+          })
+          if (sizeWithPrice) {
+            priceToUse = (sizeWithPrice as any).price
+            console.log('[ProductModal] No size selected, using first available size price:', priceToUse, 'from size:', sizeWithPrice.size)
+          }
+        }
       }
     }
     
@@ -162,18 +174,29 @@ export default function ProductModal({
     
     const baseProductPrice = product.price || 0
     
-    // If size is selected and product has size-based pricing
-    if (selectedSize && product.sizes && isMiniMeBrand) {
-      const sizeInfo = product.sizes.find(s => s.size === selectedSize)
-      console.log('[ProductModal] BasePrice calculation:', {
-        selectedSize,
-        sizeInfo,
-        sizeInfoPrice: sizeInfo?.price,
-        baseProductPrice
-      })
-      if (sizeInfo?.price !== undefined && sizeInfo.price !== null && sizeInfo.price > 0) {
-        console.log('[ProductModal] ✅ Using size-specific base price:', sizeInfo.price)
-        return sizeInfo.price
+    // If product has size-based pricing (MiniMe)
+    if (product.sizes && isMiniMeBrand) {
+      // If a size is selected, use that size's price
+      if (selectedSize) {
+        const sizeInfo = product.sizes.find(s => s.size === selectedSize)
+        if (sizeInfo && (sizeInfo as any).price !== undefined && (sizeInfo as any).price !== null && (sizeInfo as any).price > 0) {
+          return (sizeInfo as any).price
+        }
+        // If selected size doesn't have price, try fallback
+        if (baseProductPrice === 0 && product.sizes && product.sizes.length > 0) {
+          const sizeWithPrice = product.sizes.find((s: any) => s.price && s.price > 0)
+          if (sizeWithPrice) {
+            return (sizeWithPrice as any).price
+          }
+        }
+      } else {
+        // No size selected - try to find first size with price
+        if (baseProductPrice === 0 && product.sizes && product.sizes.length > 0) {
+          const sizeWithPrice = product.sizes.find((s: any) => s.price && s.price > 0)
+          if (sizeWithPrice) {
+            return (sizeWithPrice as any).price
+          }
+        }
       }
     }
     
@@ -219,9 +242,14 @@ export default function ProductModal({
         name: product.name,
         price: product.price,
         hasPrice: !!product.price,
+        brand_id: product.brand_id,
         sizes: product.sizes,
-        sizesWithPrices: product.sizes?.map(s => ({ size: s.size, stock: s.stock, price: s.price, hasPrice: s.price !== undefined && s.price !== null })),
-        brand_id: product.brand_id
+        sizesWithPrices: product.sizes?.map((s: any) => ({ 
+          size: s.size, 
+          stock: s.stock, 
+          price: (s as any).price,
+          hasPrice: (s as any).price !== undefined && (s as any).price !== null
+        }))
       })
       
       if (typeof window !== 'undefined') {
@@ -296,10 +324,10 @@ export default function ProductModal({
       const indicesToPreload = [prevIndex, nextIndex]
       indicesToPreload.forEach((index) => {
         if (index !== selectedImageIndex && images[index]) {
-        const img = new window.Image()
+          const img = new window.Image()
           img.fetchPriority = 'high'
           img.loading = 'eager'
-        img.onload = () => {
+          img.onload = () => {
             setImagesLoaded(prev => new Set(prev).add(index))
           }
           img.onerror = () => {
@@ -438,9 +466,29 @@ export default function ProductModal({
       let sizePrice: number | undefined = undefined
       if (selectedSize && product.sizes && isMiniMeBrand) {
         const sizeInfo = product.sizes.find(s => s.size === selectedSize)
-        if (sizeInfo?.price !== undefined && sizeInfo.price !== null) {
+        console.log('[ProductModal] handleAddToCart - Size info:', {
+          selectedSize,
+          sizeInfo,
+          sizePrice: sizeInfo?.price,
+          isMiniMeBrand,
+          allSizes: product.sizes
+        })
+        if (sizeInfo?.price !== undefined && sizeInfo.price !== null && sizeInfo.price > 0) {
           sizePrice = sizeInfo.price
+          console.log('[ProductModal] Using size price for cart:', sizePrice)
+        } else {
+          // For MiniMe, if no size price, use base product price
+          sizePrice = product.price > 0 ? product.price : undefined
+          console.log('[ProductModal] No size price, using base price:', sizePrice)
         }
+      } else if (isMiniMeBrand && !selectedSize) {
+        throw new Error('Please select a size before adding to cart')
+      }
+      
+      // Validate price before adding to cart
+      const finalPrice = sizePrice !== undefined ? sizePrice : product.price
+      if (finalPrice === 0 || finalPrice === undefined || finalPrice === null) {
+        throw new Error('Product price is not set. Please contact support.')
       }
       
       await addToCart(product.id, 1, selectedSize || undefined, sizePrice)
@@ -595,20 +643,44 @@ export default function ProductModal({
                   // Always use product.price as the base - it's always available from the product object
                   const productPrice = product.price || 0
                   
-                  // Get calculated prices, but fallback to productPrice if null/undefined/0
-                  const calculatedDisplayPrice = (displayPrice !== null && displayPrice !== undefined && displayPrice > 0) 
+                  // Get calculated prices - prefer displayPrice/basePrice, but fallback to productPrice
+                  const calculatedDisplayPrice = (displayPrice !== null && displayPrice !== undefined && displayPrice >= 0) 
                     ? displayPrice 
                     : productPrice
-                  const calculatedBasePrice = (basePrice !== null && basePrice !== undefined && basePrice > 0)
+                  const calculatedBasePrice = (basePrice !== null && basePrice !== undefined && basePrice >= 0)
                     ? basePrice
                     : productPrice
                   
-                  // Final prices to display
-                  const finalPrice = calculatedDisplayPrice > 0 ? calculatedDisplayPrice : productPrice
-                  const finalBasePrice = calculatedBasePrice > 0 ? calculatedBasePrice : productPrice
+                  // Final prices to display - use calculated if > 0, otherwise try to find a size price
+                  let finalPrice = calculatedDisplayPrice
+                  let finalBasePrice = calculatedBasePrice
+                  
+                  // If price is 0, check if any size has a price (don't wait for brand detection)
+                  // This handles MiniMe products even if brand check hasn't completed
+                  if (finalPrice === 0 && product.sizes && product.sizes.length > 0) {
+                    const sizeWithPrice = product.sizes.find((s: any) => {
+                      const price = (s as any).price
+                      return price !== undefined && price !== null && price > 0
+                    })
+                    if (sizeWithPrice) {
+                      finalPrice = (sizeWithPrice as any).price
+                      finalBasePrice = finalPrice
+                      console.log('[ProductModal] Using size price as fallback:', finalPrice, 'from size:', sizeWithPrice.size)
+                    }
+                  }
+                  
+                  // Also check if sizes have prices even when calculatedDisplayPrice > 0 but we should prefer size prices for MiniMe
+                  if (isMiniMeBrand && product.sizes && product.sizes.length > 0 && selectedSize) {
+                    const selectedSizeInfo = product.sizes.find((s: any) => s.size === selectedSize)
+                    if (selectedSizeInfo && (selectedSizeInfo as any).price && (selectedSizeInfo as any).price > 0) {
+                      finalPrice = (selectedSizeInfo as any).price
+                      finalBasePrice = finalPrice
+                      console.log('[ProductModal] Using selected size price:', finalPrice, 'for size:', selectedSize)
+                    }
+                  }
                   
                   // Debug log
-                  console.log('[ProductModal] Price calculation:', {
+                  console.log('[ProductModal] Price display calculation:', {
                     productPrice,
                     displayPrice,
                     basePrice,
@@ -617,7 +689,10 @@ export default function ProductModal({
                     finalPrice,
                     finalBasePrice,
                     hasDiscount: product.has_active_discount,
-                    discountedPrice
+                    discountedPrice,
+                    isMiniMeBrand,
+                    selectedSize,
+                    allSizes: product.sizes?.map(s => ({ size: s.size, price: (s as any).price }))
                   })
                   
                   // Always show price, even if it's 0
@@ -630,13 +705,13 @@ export default function ProductModal({
                         <p className="text-sm md:text-xl text-gray-500 line-through">
                           ₦{finalBasePrice.toLocaleString()}
                         </p>
-                    <Badge variant="destructive" className="text-xs md:text-sm">
-                      {product.discount_percentage 
-                        ? `${product.discount_percentage}% OFF`
-                        : `₦${product.discount_amount?.toLocaleString()} OFF`
-                      }
-                    </Badge>
-                  </>
+                        <Badge variant="destructive" className="text-xs md:text-sm">
+                          {product.discount_percentage 
+                            ? `${product.discount_percentage}% OFF`
+                            : `₦${product.discount_amount?.toLocaleString()} OFF`
+                          }
+                        </Badge>
+                      </>
                     )
                   } else {
                     return (
@@ -679,44 +754,37 @@ export default function ProductModal({
                 <h3 className="font-semibold text-gray-900 mb-3 md:mb-4 text-base md:text-lg">Size</h3>
                 <div className="grid grid-cols-3 gap-2 md:gap-3">
                   {product.sizes.map((sizeOption) => {
-                    const sizePrice = isMiniMeBrand && sizeOption.price !== undefined && sizeOption.price !== null
-                      ? sizeOption.price
+                    const sizePriceValue = isMiniMeBrand && (sizeOption as any).price !== undefined && (sizeOption as any).price !== null && (sizeOption as any).price > 0
+                      ? (sizeOption as any).price
                       : product.price
                     const sizeDisplayPrice = product.has_active_discount && product.discounted_price
                       ? product.discounted_price
-                      : sizePrice
+                      : sizePriceValue
                     
                     return (
-                    <button
-                      key={sizeOption.size}
-                        onClick={() => {
-                          console.log('[ProductModal] Size clicked:', {
-                            size: sizeOption.size,
-                            sizePrice: sizeOption.price,
-                            isMiniMeBrand,
-                            productPrice: product.price
-                          })
-                          setSelectedSize(sizeOption.size)
-                        }}
-                      disabled={sizeOption.stock === 0}
-                      className={`px-2 md:px-4 py-2 md:py-3 border-2 rounded-lg transition-all font-medium text-sm md:text-base ${
-                        selectedSize === sizeOption.size
-                          ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-md'
-                          : sizeOption.stock === 0
-                          ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
-                          : 'border-gray-300 hover:border-gray-400 hover:shadow-sm'
-                      }`}
-                    >
+                      <button
+                        key={sizeOption.size}
+                        onClick={() => setSelectedSize(sizeOption.size)}
+                        disabled={sizeOption.stock === 0}
+                        className={`px-2 md:px-4 py-2 md:py-3 border-2 rounded-lg transition-all font-medium text-sm md:text-base ${
+                          selectedSize === sizeOption.size
+                            ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-md'
+                            : sizeOption.stock === 0
+                            ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
+                            : 'border-gray-300 hover:border-gray-400 hover:shadow-sm'
+                        }`}
+                      >
                         <div className="flex flex-col items-center">
                           <span>{sizeOption.size}</span>
-                          {isMiniMeBrand && sizeOption.price !== undefined && sizeOption.price !== null && (
+                          {/* Show price if size has a price (check directly, don't wait for brand detection) */}
+                          {(sizeOption as any).price !== undefined && (sizeOption as any).price !== null && (sizeOption as any).price > 0 && (
                             <span className="text-xs mt-1 font-semibold">₦{sizeDisplayPrice.toLocaleString()}</span>
                           )}
-                      {sizeOption.stock === 0 && (
-                        <div className="text-xs mt-1">Out of Stock</div>
-                      )}
+                          {sizeOption.stock === 0 && (
+                            <div className="text-xs mt-1">Out of Stock</div>
+                          )}
                         </div>
-                    </button>
+                      </button>
                     )
                   })}
                 </div>
