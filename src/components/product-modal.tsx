@@ -340,20 +340,33 @@ export default function ProductModal({
   }, [selectedImageIndex, images, isOpen])
 
   useEffect(() => {
-    // Prevent body scroll when modal is open
+    // Prevent body scroll when modal is open and fix viewport height on mobile
     if (isOpen) {
       requestAnimationFrame(() => {
         document.body.style.overflow = 'hidden'
+        // Fix iOS Safari viewport height issue
+        const vh = window.innerHeight * 0.01
+        document.documentElement.style.setProperty('--vh', `${vh}px`)
+        // Prevent scroll on body
+        document.body.style.position = 'fixed'
+        document.body.style.width = '100%'
+        document.body.style.top = '0'
       })
     } else {
       requestAnimationFrame(() => {
         document.body.style.overflow = 'unset'
+        document.body.style.position = ''
+        document.body.style.width = ''
+        document.body.style.top = ''
       })
     }
 
     // Cleanup on unmount
     return () => {
       document.body.style.overflow = 'unset'
+      document.body.style.position = ''
+      document.body.style.width = ''
+      document.body.style.top = ''
     }
   }, [isOpen])
 
@@ -512,8 +525,8 @@ export default function ProductModal({
         onClick={onClose}
       />
       
-      {/* Mobile-Optimized Modal */}
-      <div className="fixed inset-0 z-50 flex flex-col md:flex-row overflow-hidden">
+      {/* Mobile-Optimized Modal - Full Screen on Mobile */}
+      <div className="fixed inset-0 z-[60] flex flex-col md:flex-row overflow-hidden h-screen md:h-auto w-screen max-h-screen max-w-screen" style={{ height: '100dvh' } as React.CSSProperties}>
         {/* Close Button - Mobile */}
         <button
           onClick={onClose}
@@ -523,7 +536,7 @@ export default function ProductModal({
         </button>
 
         {/* Image Section - Responsive */}
-        <div className="flex-1 relative bg-white flex items-center justify-center overflow-hidden">
+        <div className="flex-1 relative bg-white flex items-center justify-center overflow-hidden min-h-0 h-[50vh] md:h-auto md:flex-1">
           {/* Main Image Display */}
           <div 
             className="relative w-full h-full flex items-center justify-center p-4 md:p-8"
@@ -602,8 +615,8 @@ export default function ProductModal({
           </div>
         </div>
 
-        {/* Product Details Section - Mobile Optimized */}
-        <div className="w-full md:w-96 lg:w-[28rem] bg-white border-t md:border-t-0 md:border-l border-gray-200 flex flex-col max-h-[60vh] md:max-h-full overflow-y-auto">
+        {/* Product Details Section - Mobile Optimized - Full Height on Mobile */}
+        <div className="w-full md:w-96 lg:w-[28rem] bg-white border-t md:border-t-0 md:border-l border-gray-200 flex flex-col h-[50vh] md:h-auto md:max-h-full overflow-y-auto min-h-0 flex-shrink-0 flex-1 md:flex-none">
           {/* Header with Close and Share */}
           <div className="p-4 md:p-6 border-b bg-white sticky top-0 z-10">
             <div className="flex justify-between items-start mb-4">
