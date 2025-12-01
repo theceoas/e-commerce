@@ -335,26 +335,26 @@ export default function DiscountsPage() {
                                     </div>
                                     <div className="flex items-center space-x-2 bg-gray-100 p-1 rounded-lg">
                                         <Button
-                                            variant={selectionMode === 'manual' ? 'white' : 'ghost'}
+                                            variant={selectionMode === 'manual' ? 'default' : 'ghost'}
                                             size="sm"
                                             onClick={() => setSelectionMode('manual')}
-                                            className={selectionMode === 'manual' ? 'shadow-sm' : ''}
+                                            className={selectionMode === 'manual' ? 'shadow-sm bg-white hover:bg-white' : ''}
                                         >
                                             Manual
                                         </Button>
                                         <Button
-                                            variant={selectionMode === 'brand' ? 'white' : 'ghost'}
+                                            variant={selectionMode === 'brand' ? 'default' : 'ghost'}
                                             size="sm"
                                             onClick={() => setSelectionMode('brand')}
-                                            className={selectionMode === 'brand' ? 'shadow-sm' : ''}
+                                            className={selectionMode === 'brand' ? 'shadow-sm bg-white hover:bg-white' : ''}
                                         >
                                             By Brand
                                         </Button>
                                         <Button
-                                            variant={selectionMode === 'all' ? 'white' : 'ghost'}
+                                            variant={selectionMode === 'all' ? 'default' : 'ghost'}
                                             size="sm"
                                             onClick={() => setSelectionMode('all')}
-                                            className={selectionMode === 'all' ? 'shadow-sm' : ''}
+                                            className={selectionMode === 'all' ? 'shadow-sm bg-white hover:bg-white' : ''}
                                         >
                                             All Products
                                         </Button>

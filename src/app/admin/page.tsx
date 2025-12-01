@@ -179,8 +179,8 @@ export default function AdminDashboard() {
       setStats({
         totalProducts: productsCount,
         totalOrders: allOrders.length, // Total count of all orders
-        totalRevenue: allOrders.reduce((sum, order) => sum + order.total_amount, 0), // Sum ALL orders
-        activeProducts: productsData.filter(p => p.in_stock).length // This is still based on recent, but acceptable for "Active Recent" or we should fetch count of active too. For now, let's leave active as is or fix it properly.
+        totalRevenue: allOrders.reduce((sum: number, order: any) => sum + order.total_amount, 0), // Sum ALL orders
+        activeProducts: productsData.filter((p: any) => p.in_stock).length // This is still based on recent, but acceptable for "Active Recent" or we should fetch count of active too. For now, let's leave active as is or fix it properly.
       })
     } catch (error) {
       // Removed console.error for performance

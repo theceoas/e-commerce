@@ -154,7 +154,7 @@ async function getApplicableItems(promotion: any, cartItems: CartItem[]): Promis
       return []
     }
 
-    const brandProductIds = brandProducts.map(p => p.id)
+    const brandProductIds = brandProducts.map((p: { id: string }) => p.id)
     return cartItems.filter(item => brandProductIds.includes(item.product_id))
   }
 
@@ -169,7 +169,7 @@ async function getApplicableItems(promotion: any, cartItems: CartItem[]): Promis
  * Calculates the discount amount
  */
 function calculateDiscount(promotion: any, applicableItems: CartItem[], subtotal: number): number {
-  const applicableSubtotal = applicableItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+  const applicableSubtotal = applicableItems.reduce((sum: number, item: CartItem) => sum + (item.price * item.quantity), 0)
 
   let discountAmount = 0
 

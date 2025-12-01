@@ -155,7 +155,7 @@ export default function CheckoutPage() {
       setUserAddresses(data || []);
 
       // Auto-select default address
-      const defaultAddress = data?.find(addr => addr.is_default);
+      const defaultAddress = data?.find((addr: any) => addr.is_default);
       if (defaultAddress) {
         setSelectedAddressId(defaultAddress.id);
         setForm(prev => ({

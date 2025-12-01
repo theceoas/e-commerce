@@ -319,7 +319,7 @@ function WelcomeFrame({ brands, loading }: { brands: Brand[]; loading?: boolean 
             {loading ? (
               <BrandGridSkeleton count={3} />
             ) : (
-              brands.filter(brand => brand.is_active).slice(0, 3).map((brand, index) => {
+              brands.filter((brand: any) => brand.is_active).slice(0, 3).map((brand: any, index: number) => {
                 const getBadgeColor = (name: string) => {
                   const lowerName = name.toLowerCase()
                   if (lowerName.includes('kiowa')) return "bg-[#4A5D23] text-white"
@@ -426,7 +426,7 @@ function KiowaFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
     if (featuredProducts.length > 0) {
       const imageUrls = featuredProducts
         .slice(0, 4) // Preload first 4 products
-        .map(p => p.thumbnail_url)
+        .map((p: any) => p.thumbnail_url)
         .filter(Boolean)
 
       if (imageUrls.length > 0) {
@@ -498,7 +498,7 @@ function KiowaFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
             <ProductGridSkeleton count={4} />
           ) : featuredProducts.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-              {featuredProducts.map((product, index) => (
+              {featuredProducts.map((product: any, index: number) => (
                 <motion.div
                   key={product.id}
                   initial={{ opacity: 0, y: 30 }}
@@ -592,7 +592,7 @@ function OmegeFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
     if (featuredProducts.length > 0) {
       const imageUrls = featuredProducts
         .slice(0, 4) // Preload first 4 products
-        .map(p => p.thumbnail_url)
+        .map((p: any) => p.thumbnail_url)
         .filter(Boolean)
 
       if (imageUrls.length > 0) {
@@ -664,7 +664,7 @@ function OmegeFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
             <ProductGridSkeleton count={4} />
           ) : featuredProducts.length > 0 && (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-              {featuredProducts.map((product, index) => (
+              {featuredProducts.map((product: any, index: number) => (
                 <motion.div
                   key={product.id}
                   initial={{ opacity: 0, y: 30 }}
@@ -758,7 +758,7 @@ function MiniMeFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
     if (featuredProducts.length > 0) {
       const imageUrls = featuredProducts
         .slice(0, 4) // Preload first 4 products
-        .map(p => p.thumbnail_url)
+        .map((p: any) => p.thumbnail_url)
         .filter(Boolean)
 
       if (imageUrls.length > 0) {
@@ -830,7 +830,7 @@ function MiniMeFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
             <ProductGridSkeleton count={4} />
           ) : featuredProducts.length > 0 && (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-              {featuredProducts.map((product, index) => (
+              {featuredProducts.map((product: any, index: number) => (
                 <motion.div
                   key={product.id}
                   initial={{ opacity: 0, y: 30 }}
@@ -923,7 +923,7 @@ function OthersFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
     if (featuredProducts.length > 0) {
       const imageUrls = featuredProducts
         .slice(0, 4) // Preload first 4 products
-        .map(p => p.thumbnail_url)
+        .map((p: any) => p.thumbnail_url)
         .filter(Boolean)
 
       if (imageUrls.length > 0) {
@@ -996,7 +996,7 @@ function OthersFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
             <ProductGridSkeleton count={4} />
           ) : featuredProducts.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-              {featuredProducts.map((product, index) => (
+              {featuredProducts.map((product: any, index: number) => (
                 <motion.div
                   key={product.id}
                   initial={{ opacity: 0, y: 30 }}
@@ -1150,9 +1150,9 @@ export default function HomePage() {
     if (brands.length > 0 && !brandsLoading) {
       // Preload brand images
       const brandImages = brands
-        .filter(brand => brand.is_active && brand.image_url)
+        .filter((brand: any) => brand.is_active && brand.image_url)
         .slice(0, 3)
-        .map(brand => brand.image_url)
+        .map((brand: any) => brand.image_url)
 
       if (brandImages.length > 0) {
         preloadImages(brandImages).catch(() => { })
@@ -1225,7 +1225,7 @@ export default function HomePage() {
         </section>
 
         {/* Brand Sections - Dynamic rendering */}
-        {!brandsLoading && brands.filter(brand => brand.is_active).map((brand) => {
+        {!brandsLoading && brands.filter((brand: any) => brand.is_active).map((brand: any) => {
           const sectionId = getSectionId(brand.name)
           const brandName = brand.name.toLowerCase()
 
