@@ -1,32 +1,22 @@
 'use client';
 
 import React, { useState, useEffect, Suspense, useMemo } from 'react';
-import dynamic from 'next/dynamic';
-import { supabase } from '@/lib/supabase';
+// import dynamic from 'next/dynamic';
+import { createClient } from '@/utils/supabase/client'
+
+const supabase = createClient();
+import { withQueryTimeout } from '@/lib/query-timeout';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 
-const ProductModal = dynamic(
-  () => import('@/components/product-modal'),
-  { 
-    ssr: false,
-    loading: () => (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg p-6 animate-pulse">
-          <div className="h-6 bg-gray-200 rounded w-32 mb-4"></div>
-          <div className="h-4 bg-gray-200 rounded w-48"></div>
-        </div>
-      </div>
-    )
-  }
-);
+import ProductModal from '@/components/product-modal';
 
-import { 
-  Eye, 
-  Download, 
-  Search, 
-  Filter, 
+import {
+  Eye,
+  Download,
+  Search,
+  Filter,
   RefreshCw,
   Package,
   ChevronDown,
@@ -42,6 +32,7 @@ import {
   X
 } from 'lucide-react';
 import Image from 'next/image';
+import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 
@@ -139,42 +130,67 @@ export default function AdminOrdersPage() {
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [groupByStatus, setGroupByStatus] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
-  const [pendingStatusChange, setPendingStatusChange] = useState<{orderId: string, newStatus: string, currentStatus: string} | null>(null);
+  const [pendingStatusChange, setPendingStatusChange] = useState<{ orderId: string, newStatus: string, currentStatus: string } | null>(null);
+
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalOrders, setTotalOrders] = useState(0);
+  const ITEMS_PER_PAGE = 50;
 
   useEffect(() => {
-    // Prefetch ProductModal chunk to avoid runtime chunk load errors
-    import('@/components/product-modal');
-    loadOrders();
-  }, []);
+    loadOrders(page);
+  }, [page]);
 
-  const loadOrders = async () => {
+  const loadOrders = async (currentPage = 1) => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('orders')
-        .select(`
-          *,
-          order_items (
-            id,
-            quantity,
-            size,
-            unit_price,
-            total_price,
-            products (
-              id,
-              name,
-              thumbnail_url,
-              additional_images,
-              price
-            )
-          )
-        `)
-        .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setOrders(data || []);
+      // Wrap queries with 10-second timeout to prevent infinite loading
+      const result = await withQueryTimeout(async () => {
+        // First get total count
+        const { count, error: countError } = await supabase
+          .from('orders')
+          .select('*', { count: 'exact', head: true });
+
+        if (countError) throw countError;
+
+        setTotalOrders(count || 0);
+        setTotalPages(Math.ceil((count || 0) / ITEMS_PER_PAGE));
+
+        // Then get paginated data
+        const from = (currentPage - 1) * ITEMS_PER_PAGE;
+        const to = from + ITEMS_PER_PAGE - 1;
+
+        const { data, error } = await supabase
+          .from('orders')
+          .select(`
+            *,
+            order_items (
+              id,
+              quantity,
+              size,
+              unit_price,
+              total_price,
+              products (
+                id,
+                name,
+                thumbnail_url,
+                additional_images,
+                price
+              )
+            )
+          `)
+          .order('created_at', { ascending: false })
+          .range(from, to);
+
+        if (error) throw error;
+        return data || [];
+      }, 15000); // 15 second timeout for orders (more complex query)
+
+      setOrders(result);
     } catch (error) {
       console.error('Error loading orders:', error);
+      toast.error('Failed to load orders');
     } finally {
       setLoading(false);
     }
@@ -209,11 +225,11 @@ export default function AdminOrdersPage() {
         throw fetchError;
       }
 
-      const updateData: any = { 
+      const updateData: any = {
         status: newStatus,
         updated_at: new Date().toISOString()
       };
-      
+
       // If status is completed, automatically mark as paid
       if (newStatus === 'completed') {
         updateData.payment_status = 'paid';
@@ -283,7 +299,7 @@ export default function AdminOrdersPage() {
 
         const webhookResult = await webhookResponse.json();
         console.log('Webhook triggered:', webhookResult);
-        
+
         if (webhookResult.triggered > 0) {
           toast.success(`Order status updated and ${webhookResult.triggered} webhook(s) triggered`);
         } else {
@@ -293,7 +309,7 @@ export default function AdminOrdersPage() {
         console.error('Error triggering webhook:', webhookError);
         toast.success('Order status updated (webhook failed)');
       }
-      
+
       // Refresh orders list
       loadOrders();
     } catch (error) {
@@ -313,16 +329,16 @@ export default function AdminOrdersPage() {
       });
 
       const result = await response.json();
-      
+
       if (result.success) {
-        alert(`Successfully fixed ${result.fixed} orders!`);
+        toast.success(`Successfully fixed ${result.fixed} orders!`);
         loadOrders(); // Refresh the orders list
       } else {
-        alert('Failed to fix orders: ' + result.error);
+        toast.error('Failed to fix orders: ' + result.error);
       }
     } catch (error) {
       console.error('Error fixing orders:', error);
-      alert('Failed to fix orders. Please try again.');
+      toast.error('Failed to fix orders. Please try again.');
     } finally {
       setIsFixingOrders(false);
     }
@@ -339,7 +355,7 @@ export default function AdminOrdersPage() {
 
       if (error) {
         console.error('Error fetching product:', error);
-        alert('Failed to load product details');
+        toast.error('Failed to load product details');
         return;
       }
 
@@ -349,13 +365,13 @@ export default function AdminOrdersPage() {
           ...product,
           sizes: product.sizes || []
         };
-        
+
         setSelectedProductForModal(modalProduct);
         setIsProductModalOpen(true);
       }
     } catch (error) {
       console.error('Error fetching product:', error);
-      alert('Failed to load product details');
+      toast.error('Failed to load product details');
     }
   };
 
@@ -394,7 +410,7 @@ export default function AdminOrdersPage() {
     // Sort groups by status priority
     const statusOrder = ['pending', 'processing', 'shipped', 'completed', 'cancelled'];
     const sortedGroups: Record<string, Order[]> = {};
-    
+
     statusOrder.forEach(status => {
       if (grouped[status]) {
         sortedGroups[status] = grouped[status];
@@ -436,10 +452,10 @@ export default function AdminOrdersPage() {
     return orders.filter(order => {
       const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
       const matchesPayment = paymentFilter === 'all' || order.payment_status === paymentFilter;
-      const matchesSearch = searchTerm === '' || 
+      const matchesSearch = searchTerm === '' ||
         order.order_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
         order.guest_email?.toLowerCase().includes(searchTerm.toLowerCase());
-      
+
       return matchesStatus && matchesPayment && matchesSearch;
     });
   }, [orders, statusFilter, paymentFilter, searchTerm]);
@@ -469,8 +485,8 @@ export default function AdminOrdersPage() {
               <p className="text-sm sm:text-base text-gray-600 mt-2">Manage and track customer orders</p>
             </div>
             <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-              <Button 
-                onClick={loadOrders}
+              <Button
+                onClick={() => loadOrders(page)}
                 className="bg-yellow-500 hover:bg-yellow-600 text-black text-xs sm:text-sm"
                 size="sm"
               >
@@ -478,10 +494,10 @@ export default function AdminOrdersPage() {
                 <span className="hidden sm:inline">Refresh</span>
                 <span className="sm:hidden">Refresh</span>
               </Button>
-              <Button 
+              <Button
                 onClick={fixOrdersConstraints}
                 disabled={isFixingOrders}
-                variant="outline" 
+                variant="outline"
                 className="border-red-200 hover:bg-red-50 text-red-600 text-xs sm:text-sm"
                 size="sm"
               >
@@ -518,7 +534,7 @@ export default function AdminOrdersPage() {
                 />
               </div>
             </div>
-            
+
             <div>
               <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Status</label>
               <select
@@ -534,7 +550,7 @@ export default function AdminOrdersPage() {
                 <option value="cancelled">Cancelled</option>
               </select>
             </div>
-            
+
             <div>
               <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">Payment</label>
               <select
@@ -548,7 +564,7 @@ export default function AdminOrdersPage() {
                 <option value="failed">Failed</option>
               </select>
             </div>
-            
+
             <div className="flex flex-col sm:flex-row sm:items-end gap-3">
               <Button
                 variant={groupByStatus ? "default" : "outline"}
@@ -573,7 +589,7 @@ export default function AdminOrdersPage() {
             {Object.entries(groupOrdersByStatus(filteredOrders)).map(([status, orders]) => (
               <div key={status} className="bg-white rounded-xl shadow-sm border border-yellow-100 overflow-hidden">
                 {/* Status Group Header */}
-                <div 
+                <div
                   className="bg-gradient-to-r from-yellow-500 to-orange-500 text-black px-6 py-4 cursor-pointer flex items-center justify-between"
                   onClick={() => toggleGroupCollapse(status)}
                 >
@@ -614,7 +630,7 @@ export default function AdminOrdersPage() {
                         <tbody className="divide-y divide-gray-100">
                           {orders.map((order) => (
                             <React.Fragment key={order.id}>
-                              <tr 
+                              <tr
                                 className="hover:bg-yellow-50 transition-colors cursor-pointer"
                                 onClick={() => toggleOrderExpansion(order.id)}
                               >
@@ -683,7 +699,7 @@ export default function AdminOrdersPage() {
                                   </div>
                                 </td>
                               </tr>
-                              
+
                               {/* Expanded Order Details for Desktop */}
                               {expandedOrders.has(order.id) && (
                                 <tr>
@@ -726,8 +742,8 @@ export default function AdminOrdersPage() {
                                         </h4>
                                         <div className="space-y-3">
                                           {order.order_items.map((item) => (
-                                            <div 
-                                              key={item.id} 
+                                            <div
+                                              key={item.id}
                                               className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
                                               onClick={() => handleProductClick(item.products.id)}
                                               title="Click to view product details"
@@ -776,7 +792,7 @@ export default function AdminOrdersPage() {
                     <div className="lg:hidden space-y-3 p-4">
                       {orders.map((order) => (
                         <div key={order.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-                          <div 
+                          <div
                             className="cursor-pointer"
                             onClick={() => toggleOrderExpansion(order.id)}
                           >
@@ -801,13 +817,13 @@ export default function AdminOrdersPage() {
                                 </Badge>
                               </div>
                             </div>
-                            
+
                             <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
                               <div>{order.guest_email || 'Guest Customer'}</div>
                               <div>{new Date(order.created_at).toLocaleDateString()}</div>
                             </div>
                           </div>
-                          
+
                           <div className="flex items-center justify-between gap-2">
                             <select
                               value={order.status}
@@ -836,7 +852,7 @@ export default function AdminOrdersPage() {
                               <Eye className="w-3 h-3" />
                             </Button>
                           </div>
-                          
+
                           {/* Expanded Order Details for Mobile */}
                           {expandedOrders.has(order.id) && (
                             <div className="mt-4 pt-4 border-t border-gray-200 space-y-4">
@@ -877,8 +893,8 @@ export default function AdminOrdersPage() {
                                 </h4>
                                 <div className="space-y-2">
                                   {order.order_items.map((item) => (
-                                    <div 
-                                      key={item.id} 
+                                    <div
+                                      key={item.id}
                                       className="flex items-center gap-2 p-2 bg-white rounded cursor-pointer hover:bg-gray-100 transition-colors"
                                       onClick={() => handleProductClick(item.products.id)}
                                       title="Click to view product details"
@@ -922,7 +938,7 @@ export default function AdminOrdersPage() {
                 )}
               </div>
             ))}
-            
+
             {filteredOrders.length === 0 && (
               <div className="bg-white rounded-xl shadow-sm border border-yellow-100 p-12 text-center">
                 <Package className="w-12 h-12 text-gray-400 mx-auto mb-4" />
@@ -950,7 +966,7 @@ export default function AdminOrdersPage() {
                 <tbody className="divide-y divide-gray-100">
                   {filteredOrders.map((order) => (
                     <React.Fragment key={order.id}>
-                      <tr 
+                      <tr
                         className="hover:bg-yellow-50 transition-colors cursor-pointer"
                         onClick={() => toggleOrderExpansion(order.id)}
                       >
@@ -1019,7 +1035,7 @@ export default function AdminOrdersPage() {
                           </Button>
                         </td>
                       </tr>
-                      
+
                       {/* Expanded Order Details */}
                       {expandedOrders.has(order.id) && (
                         <tr>
@@ -1062,8 +1078,8 @@ export default function AdminOrdersPage() {
                                 </h4>
                                 <div className="space-y-3">
                                   {order.order_items.map((item) => (
-                                    <div 
-                                      key={item.id} 
+                                    <div
+                                      key={item.id}
                                       className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
                                       onClick={() => handleProductClick(item.products.id)}
                                       title="Click to view product details"
@@ -1107,7 +1123,7 @@ export default function AdminOrdersPage() {
                 </tbody>
               </table>
             </div>
-            
+
             {filteredOrders.length === 0 && (
               <div className="text-center py-12">
                 <Package className="w-12 h-12 text-gray-400 mx-auto mb-4" />
@@ -1115,6 +1131,37 @@ export default function AdminOrdersPage() {
                 <p className="text-gray-500">Try adjusting your filters or search terms.</p>
               </div>
             )}
+          </div>
+        )}
+        {/* Pagination Controls */}
+        {!loading && (
+          <div className="mt-6 flex items-center justify-between border-t border-gray-200 pt-4">
+            <div className="text-sm text-gray-500">
+              Showing {((page - 1) * ITEMS_PER_PAGE) + 1} to {Math.min(page * ITEMS_PER_PAGE, totalOrders)} of {totalOrders} orders
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="border-yellow-200 hover:bg-yellow-50"
+              >
+                Previous
+              </Button>
+              <div className="text-sm font-medium text-gray-900">
+                Page {page} of {totalPages}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="border-yellow-200 hover:bg-yellow-50"
+              >
+                Next
+              </Button>
+            </div>
           </div>
         )}
       </div>

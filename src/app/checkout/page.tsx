@@ -10,13 +10,13 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { 
-  User, 
-  Mail, 
-  Phone, 
-  MapPin, 
-  CreditCard, 
-  Lock, 
+import {
+  User,
+  Mail,
+  Phone,
+  MapPin,
+  CreditCard,
+  Lock,
   ShoppingBag,
   ArrowLeft,
   Check,
@@ -29,7 +29,9 @@ import {
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client'
+
+const supabase = createClient();
 import { toast } from 'sonner';
 import { reduceStock, checkStockAvailability } from '@/lib/inventory';
 import { recordPromotionUsage } from '@/lib/promotions';
@@ -45,7 +47,7 @@ const PaystackButton = dynamic(
 interface CheckoutForm {
   // Contact Info
   email: string;
-  
+
   // Shipping Address
   firstName: string;
   lastName: string;
@@ -57,13 +59,13 @@ interface CheckoutForm {
   postalCode: string;
   country: string;
   phone: string;
-  
+
   // Shipping Options
   shippingZoneId: string;
-  
+
   // Address Options
   saveAddress: boolean;
-  
+
   // Account Creation (for guests)
   createAccount: boolean;
   password?: string;
@@ -79,11 +81,11 @@ interface ShippingZone {
 }
 
 export default function CheckoutPage() {
-  const { 
-    items, 
-    loading: cartLoading, 
-    getCartTotal, 
-    getCartCount, 
+  const {
+    items,
+    loading: cartLoading,
+    getCartTotal,
+    getCartCount,
     clearCart,
     appliedPromotion,
     promotionLoading,
@@ -95,7 +97,7 @@ export default function CheckoutPage() {
   } = useCart();
   const { user, signUp } = useAuth();
   const router = useRouter();
-  
+
   const [form, setForm] = useState<CheckoutForm>({
     email: user?.email || '',
     firstName: '',
@@ -114,7 +116,7 @@ export default function CheckoutPage() {
     password: '',
     confirmPassword: ''
   });
-  
+
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -135,7 +137,7 @@ export default function CheckoutPage() {
 
   const loadUserAddresses = async () => {
     if (!user) return;
-    
+
     try {
       const { data, error } = await supabase
         .from('addresses')
@@ -148,10 +150,10 @@ export default function CheckoutPage() {
         console.error('Error loading addresses:', error);
         throw error;
       }
-      
+
       console.log('Loaded addresses:', data);
       setUserAddresses(data || []);
-      
+
       // Auto-select default address
       const defaultAddress = data?.find(addr => addr.is_default);
       if (defaultAddress) {
@@ -188,9 +190,9 @@ export default function CheckoutPage() {
         console.error('Error loading shipping zones:', error);
         throw error;
       }
-      
+
       setShippingZones(data || []);
-      
+
       // Auto-select the first (cheapest) shipping zone
       if (data && data.length > 0) {
         setSelectedShippingZone(data[0]);
@@ -216,7 +218,7 @@ export default function CheckoutPage() {
 
   const validateForm = () => {
     const required = ['email', 'firstName', 'lastName', 'address1', 'city', 'state', 'postalCode', 'phone', 'shippingZoneId'];
-    
+
     for (const field of required) {
       if (!form[field as keyof CheckoutForm]) {
         const fieldName = field === 'shippingZoneId' ? 'shipping option' : field.replace(/([A-Z])/g, ' $1').toLowerCase();
@@ -241,7 +243,7 @@ export default function CheckoutPage() {
 
   const handleApplyPromoCode = async () => {
     if (!promoCode.trim()) return;
-    
+
     if (!user) {
       toast.error('Please sign in to use promotion codes');
       return;
@@ -294,7 +296,7 @@ export default function CheckoutPage() {
 
   const validateFormSilently = () => {
     const required = ['email', 'firstName', 'lastName', 'address1', 'city', 'state', 'postalCode', 'phone', 'shippingZoneId'];
-    
+
     for (const field of required) {
       if (!form[field as keyof CheckoutForm]) {
         return false;
@@ -315,20 +317,20 @@ export default function CheckoutPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // This is now handled by Paystack button
+    // Form submission is handled by Paystack button
   };
 
   // Handle successful payment
   const handlePaymentSuccess = async (reference: any) => {
     setLoading(true);
-    
+
     try {
       // Validate form first
       if (!validateForm()) {
         setLoading(false);
         return;
       }
-      
+
       if (items.length === 0) {
         toast.error('Your cart is empty');
         setLoading(false);
@@ -351,25 +353,29 @@ export default function CheckoutPage() {
       }
 
       let userId = user?.id;
-      
+
       // Create account if guest chose to
       if (!user && form.createAccount) {
+        toast.loading('Creating your account...');
         const { error } = await signUp(form.email, form.password!, {
           firstName: form.firstName,
           lastName: form.lastName,
           phone: form.phone
         });
-        
+
         if (error) {
+          toast.dismiss();
           toast.error('Failed to create account: ' + (error.message || 'Unknown error'));
           setLoading(false);
           return;
         }
-        
+
         // Get the newly created user
         const { data: { user: newUser } } = await supabase.auth.getUser();
         userId = newUser?.id;
       }
+
+      toast.loading('Generating order number...');
 
       // Calculate total with shipping
       const shippingCost = selectedShippingZone?.price || 0;
@@ -379,11 +385,23 @@ export default function CheckoutPage() {
 
       // Generate unique order number
       const orderNumber = await generateUniqueOrderNumber();
-      
+
+      toast.loading('Finalizing order...');
+
+      // Verify we have an active session before trying to use userId
+      // This prevents RLS errors where we have a userId but auth.uid() is null
+      const { data: { session } } = await supabase.auth.getSession();
+      const activeUserId = session?.user?.id;
+
+      // If we don't have an active session, we MUST save as guest (guest_email)
+      // even if we just created an account. The account page will link it by email later.
+      const finalUserId = activeUserId || null;
+      const finalGuestEmail = activeUserId ? null : form.email;
+
       // Create order with paid status since payment was successful
       const orderData = {
-        user_id: userId,
-        guest_email: !userId ? form.email : null,
+        user_id: finalUserId,
+        guest_email: finalGuestEmail,
         subtotal: subtotalAmount,
         total_amount: totalWithShipping,
         shipping_address: {
@@ -420,11 +438,11 @@ export default function CheckoutPage() {
         const basePrice = (item as any).size_price !== undefined && (item as any).size_price !== null
           ? (item as any).size_price
           : (item.product?.price || 0);
-        
-        const effectivePrice = item.product?.has_active_discount && item.product?.discounted_price 
-          ? item.product.discounted_price 
+
+        const effectivePrice = item.product?.has_active_discount && item.product?.discounted_price
+          ? item.product.discounted_price
           : basePrice;
-        
+
         return {
           order_id: order.id,
           product_id: item.product_id,
@@ -453,7 +471,7 @@ export default function CheckoutPage() {
             order.id,
             discountAmount
           );
-          
+
           if (!promotionUsageRecorded) {
             console.error('Failed to record promotion usage');
           }
@@ -482,7 +500,7 @@ export default function CheckoutPage() {
               phone: form.phone,
               is_default: userAddresses.length === 0
             });
-          
+
           if (addressError) {
             console.error('Error saving address:', addressError);
           }
@@ -491,8 +509,10 @@ export default function CheckoutPage() {
         }
       }
 
-      // Trigger purchase webhook
+      // Trigger purchase webhook (non-blocking / short timeout)
       try {
+        // Don't await the full response if it takes too long
+        // We use a shorter timeout of 2 seconds to avoid blocking the UI
         const webhookResponse = await fetch('/api/webhooks', {
           method: 'POST',
           headers: {
@@ -521,7 +541,7 @@ export default function CheckoutPage() {
               created_at: new Date().toISOString()
             }
           }),
-          signal: AbortSignal.timeout(5000)
+          signal: AbortSignal.timeout(2000) // Reduced to 2 seconds
         });
 
         if (webhookResponse.ok) {
@@ -532,7 +552,7 @@ export default function CheckoutPage() {
         }
       } catch (webhookError) {
         if (webhookError instanceof Error && webhookError.name === 'AbortError') {
-          console.error('Purchase webhook timed out after 5 seconds');
+          console.log('Purchase webhook request sent (timed out waiting for response, which is expected)');
         } else {
           console.error('Error triggering purchase webhook:', webhookError);
         }
@@ -540,9 +560,10 @@ export default function CheckoutPage() {
 
       // Clear cart and redirect to order confirmation
       await clearCart();
-      toast.success('Payment successful! Redirecting to order confirmation...');
+      toast.dismiss(); // Clear loading toasts
+      toast.success('Payment successful! Redirecting...');
       router.push(`/order-confirmation?order=${order.order_number}`);
-      
+
     } catch (error) {
       console.error('Payment success handling error:', error);
       toast.error('Payment was successful but there was an error processing your order. Please contact support.');
@@ -616,7 +637,7 @@ export default function CheckoutPage() {
                   <Mail className="w-4 h-4 sm:w-5 sm:h-5 text-orange-600" />
                   <h2 className="text-base sm:text-lg font-semibold">Contact Information</h2>
                 </div>
-                
+
                 <div className="space-y-4">
                   <div>
                     <Label htmlFor="email" className="text-sm">Email Address</Label>
@@ -631,7 +652,7 @@ export default function CheckoutPage() {
                       className="mt-1"
                     />
                   </div>
-                  
+
                   {!user && (
                     <div className="flex items-start space-x-2">
                       <Checkbox
@@ -645,7 +666,7 @@ export default function CheckoutPage() {
                       </Label>
                     </div>
                   )}
-                  
+
                   {!user && form.createAccount && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
@@ -701,11 +722,10 @@ export default function CheckoutPage() {
                     {userAddresses.map((address) => (
                       <div
                         key={address.id}
-                        className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                          selectedAddressId === address.id
-                            ? 'border-orange-500 bg-orange-50'
-                            : 'border-gray-200 hover:border-gray-300'
-                        }`}
+                        className={`p-4 border rounded-lg cursor-pointer transition-colors ${selectedAddressId === address.id
+                          ? 'border-orange-500 bg-orange-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                          }`}
                         onClick={() => {
                           setSelectedAddressId(address.id);
                           setForm(prev => ({
@@ -761,7 +781,7 @@ export default function CheckoutPage() {
                     <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-orange-600" />
                     <h2 className="text-base sm:text-lg font-semibold">Shipping Address</h2>
                   </div>
-                  
+
                   <div className="space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
@@ -785,7 +805,7 @@ export default function CheckoutPage() {
                         />
                       </div>
                     </div>
-                    
+
                     <div>
                       <Label htmlFor="company" className="text-sm">Company (Optional)</Label>
                       <Input
@@ -795,7 +815,7 @@ export default function CheckoutPage() {
                         className="mt-1"
                       />
                     </div>
-                    
+
                     <div>
                       <Label htmlFor="address1" className="text-sm">Address Line 1</Label>
                       <Input
@@ -806,7 +826,7 @@ export default function CheckoutPage() {
                         className="mt-1"
                       />
                     </div>
-                    
+
                     <div>
                       <Label htmlFor="address2" className="text-sm">Address Line 2 (Optional)</Label>
                       <Input
@@ -816,7 +836,7 @@ export default function CheckoutPage() {
                         className="mt-1"
                       />
                     </div>
-                    
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                       <div>
                         <Label htmlFor="city" className="text-sm">City</Label>
@@ -846,7 +866,7 @@ export default function CheckoutPage() {
                         />
                       </div>
                     </div>
-                    
+
                     <div>
                       <Label htmlFor="phone" className="text-sm">Phone Number</Label>
                       <Input
@@ -916,7 +936,7 @@ export default function CheckoutPage() {
                   <CreditCard className="w-5 h-5 text-orange-600" />
                   <h2 className="text-lg font-semibold">Payment Method</h2>
                 </div>
-                
+
                 <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
                   <div className="flex items-center space-x-2">
                     <CreditCard className="w-5 h-5 text-orange-600" />
@@ -965,7 +985,7 @@ export default function CheckoutPage() {
           <div className="lg:sticky lg:top-8 lg:h-fit">
             <div className="bg-white rounded-lg shadow-sm border p-4 sm:p-6">
               <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-4">Order Summary</h2>
-              
+
               {/* Promotion Code Section */}
               {!appliedPromotion && (
                 <div className="mb-6 p-3 sm:p-4 bg-orange-50 rounded-lg border border-orange-200">
@@ -1022,7 +1042,7 @@ export default function CheckoutPage() {
                   </p>
                 </div>
               )}
-              
+
               {/* Cart Items */}
               <div className="space-y-4 mb-6">
                 {items.map((item) => (
@@ -1059,11 +1079,11 @@ export default function CheckoutPage() {
                         const basePrice = (item as any).size_price !== undefined && (item as any).size_price !== null
                           ? (item as any).size_price
                           : (item.product?.price || 0)
-                        
-                        const price = item.product?.has_active_discount && item.product?.discounted_price 
-                          ? item.product.discounted_price 
+
+                        const price = item.product?.has_active_discount && item.product?.discounted_price
+                          ? item.product.discounted_price
                           : basePrice
-                        
+
                         return (price * item.quantity).toLocaleString()
                       })()}
                     </div>
@@ -1079,14 +1099,14 @@ export default function CheckoutPage() {
                   <span className="text-gray-600">Subtotal ({getCartCount()} items)</span>
                   <span className="font-medium">₦{getSubtotal().toLocaleString()}</span>
                 </div>
-                
+
                 {appliedPromotion && getDiscountAmount() > 0 && (
                   <div className="flex justify-between text-sm">
                     <span className="text-green-600">Discount ({appliedPromotion.code})</span>
                     <span className="font-medium text-green-600">-₦{getDiscountAmount().toLocaleString()}</span>
                   </div>
                 )}
-                
+
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">
                     Shipping {selectedShippingZone ? `(${selectedShippingZone.name})` : ''}

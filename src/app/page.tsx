@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import dynamic from 'next/dynamic'
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -27,28 +26,39 @@ import { ProductGridSkeleton } from "@/components/product-skeleton"
 import { BrandGridSkeleton } from "@/components/brand-skeleton"
 import { useBrands, useFeaturedProducts, supabaseCache } from "@/hooks/useSupabaseCache"
 import { useNavigationCache } from "@/hooks/useNavigationCache"
-import { DevImageSpeed } from "@/components/dev-image-speed"
+
 import { preloadImages } from "@/hooks/useImagePreloader"
-
-// Lazy load the ProductModal component
-const ProductModal = dynamic(
-  () => import("@/components/product-modal"),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-      </div>
-    )
-  }
-)
-
+import ProductModal from "@/components/product-modal"
 import { useAuth } from "@/contexts/AuthContext"
 
 // Utility function for generating section IDs
 const getSectionId = (brandName: string) => {
+  if (!brandName || typeof brandName !== 'string') return ''
   const lowerName = brandName.toLowerCase().replace(/\s+/g, '')
   return lowerName.replace(/[^a-z0-9]/g, '')
+}
+
+// Helper function to format product price (supports price_range for MiniMe products)
+const formatProductPrice = (product: any) => {
+  if (!product) return '₦0';
+
+  // Check if product has price_range (for MiniMe products with size-specific prices)
+  const priceRange = product.price_range;
+  if (typeof priceRange === 'string' && priceRange.includes(' - ')) {
+    try {
+      const [min, max] = priceRange.split(' - ');
+      const minNum = parseFloat(min);
+      const maxNum = parseFloat(max);
+      if (!isNaN(minNum) && !isNaN(maxNum)) {
+        return `₦${minNum.toLocaleString()} - ₦${maxNum.toLocaleString()}`;
+      }
+    } catch (e) {
+      console.error('Error formatting price range:', e);
+    }
+  }
+
+  // Fallback to regular price
+  return `₦${(product.price || 0).toLocaleString()}`;
 }
 
 interface Brand {
@@ -171,7 +181,7 @@ function FixedIdentityPanel({ onAccountClick, user }: { onAccountClick: () => vo
             >
               <Search className="w-5 h-5 text-yellow-400" />
             </motion.button>
-            
+
             {/* Account Button */}
             <motion.button
               onClick={onAccountClick}
@@ -217,9 +227,9 @@ function FixedIdentityPanel({ onAccountClick, user }: { onAccountClick: () => vo
                 <Search className="w-4 h-4" />
               </Button>
             </Link>
-            <Button 
-              size="sm" 
-              variant="ghost" 
+            <Button
+              size="sm"
+              variant="ghost"
               onClick={onAccountClick}
               className="text-black hover:bg-black/10 px-3 py-2 flex items-center gap-1"
             >
@@ -269,11 +279,11 @@ function WelcomeFrame({ brands, loading }: { brands: Brand[]; loading?: boolean 
           transition={{ duration: 1, ease: "easeOut" }}
         >
           <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-8xl font-bold text-black mb-4 sm:mb-6 leading-tight">
-            Discover Nigeria's
+            <span className="text-yellow-500">FAVORITE</span>
             <br />
-            <span className="text-yellow-500">Favorite Fashion</span>
+            MADE IN NIGERIA
             <br />
-            Trio
+            FASHION BRANDS
           </h1>
 
           <motion.p
@@ -310,52 +320,56 @@ function WelcomeFrame({ brands, loading }: { brands: Brand[]; loading?: boolean 
               <BrandGridSkeleton count={3} />
             ) : (
               brands.filter(brand => brand.is_active).slice(0, 3).map((brand, index) => {
-              const badgeColors = [
-                "bg-yellow-400 text-black",
-                "bg-red-400 text-white", 
-                "bg-green-400 text-black"
-              ]
-              
-              const scrollToSection = (sectionId: string) => {
-                requestAnimationFrame(() => {
-                  const element = document.getElementById(sectionId)
-                  if (element) {
-                    element.scrollIntoView({ behavior: 'smooth' })
-                  }
-                })
-              }
+                const getBadgeColor = (name: string) => {
+                  const lowerName = name.toLowerCase()
+                  if (lowerName.includes('kiowa')) return "bg-[#4A5D23] text-white"
+                  if (lowerName.includes('omoge') || lowerName.includes('ify')) return "bg-[#E5989B] text-white"
+                  if (lowerName.includes('minime') || lowerName.includes('mini me')) return "bg-[#1E1B4B] text-white"
+                  return "bg-black text-white" // Fallback
+                }
 
-              // Map brand names to section IDs dynamically
-              
-              return (
-                <motion.div 
-                  key={brand.id} 
-                  className="relative group cursor-pointer"
-                  onClick={() => scrollToSection(getSectionId(brand.name))}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <Image
-                    src={brand.image_url}
-                    alt={`${brand.name} Preview`}
-                    width={400}
-                    height={256}
-                    className="w-full h-48 sm:h-56 md:h-64 object-cover rounded-lg shadow-lg group-hover:shadow-2xl transition-all duration-500"
-                    sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, 33vw"
-                    priority={index === 0}
-                    fetchPriority={index === 0 ? "high" : "auto"}
-                  />
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 rounded-lg transition-all duration-300 flex items-center justify-center">
-                    <span className="text-white font-semibold text-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                      Explore {brand.name}
-                    </span>
-                  </div>
-                  <Badge className={`absolute top-4 left-4 ${badgeColors[index % badgeColors.length]}`}>
-                    {brand.name}
-                  </Badge>
-                </motion.div>
-              )
-            })
+                const badgeColor = getBadgeColor(brand.name)
+
+                const scrollToSection = (sectionId: string) => {
+                  requestAnimationFrame(() => {
+                    const element = document.getElementById(sectionId)
+                    if (element) {
+                      element.scrollIntoView({ behavior: 'smooth' })
+                    }
+                  })
+                }
+
+                // Map brand names to section IDs dynamically
+
+                return (
+                  <motion.div
+                    key={brand.id}
+                    className="relative group cursor-pointer"
+                    onClick={() => scrollToSection(getSectionId(brand.name))}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <Image
+                      src={brand.image_url}
+                      alt={`${brand.name} Preview`}
+                      width={400}
+                      height={256}
+                      className="w-full aspect-video object-cover rounded-lg shadow-lg group-hover:shadow-2xl transition-all duration-500"
+                      sizes="(max-width: 640px) 100vw, (max-width: 768px) 50vw, 33vw"
+                      priority={index === 0}
+                      fetchPriority={index === 0 ? "high" : "auto"}
+                    />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 rounded-lg transition-all duration-300 flex items-center justify-center">
+                      <span className="text-white font-semibold text-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                        Explore {brand.name}
+                      </span>
+                    </div>
+                    <Badge className={`absolute top-4 left-4 ${badgeColor}`}>
+                      {brand.name}
+                    </Badge>
+                  </motion.div>
+                )
+              })
             )}
           </motion.div>
 
@@ -403,7 +417,7 @@ function KiowaFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
     const name = brand.name.toLowerCase()
     return name === 'kiowa' || name.includes('kiowa')
   })
-  
+
   const { data: featuredProductsData, loading, error } = useFeaturedProducts(kiowaData?.id || '')
   const featuredProducts = featuredProductsData || []
 
@@ -414,19 +428,19 @@ function KiowaFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
         .slice(0, 4) // Preload first 4 products
         .map(p => p.thumbnail_url)
         .filter(Boolean)
-      
+
       if (imageUrls.length > 0) {
-        preloadImages(imageUrls).catch(() => {})
+        preloadImages(imageUrls).catch(() => { })
       }
     }
   }, [featuredProducts])
 
   return (
-    <div className="min-h-screen flex items-center bg-gradient-to-br from-amber-50 to-orange-50 relative py-12 sm:py-20">
+    <div className="min-h-screen flex items-center bg-gradient-to-br from-[#fcfef9] to-[#f4f7ed] relative py-12 sm:py-20">
       <div className="container mx-auto px-4 sm:px-6">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
           <motion.div initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 1 }}>
-            <Badge className="bg-yellow-400 text-black mb-4 sm:mb-6 px-3 sm:px-4 py-1 sm:py-2 text-base sm:text-lg">
+            <Badge className="bg-[#4A5D23] text-white mb-4 sm:mb-6 px-3 sm:px-4 py-1 sm:py-2 text-base sm:text-lg">
               {kiowaData?.name || 'Kiowa'}
             </Badge>
             <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-black mb-4 sm:mb-6 leading-tight">
@@ -438,12 +452,12 @@ function KiowaFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
               "Confidence is the best accessory."
             </blockquote>
             <p className="text-base sm:text-lg lg:text-xl text-gray-700 mb-6 sm:mb-8 leading-relaxed max-w-lg">
-              {kiowaData?.description || 'For the woman who commands attention through effortless confidence and modern sophistication.'}
+              Kiowa tunics - chic and comfortable loose fitting tunics for guaranteed all day comfort
             </p>
             <Link href={`/brands/${kiowaData?.name.toLowerCase().replace(/\s+/g, '-') || 'kiowa'}`}>
               <Button
                 size="lg"
-                className="bg-yellow-400 text-black hover:bg-black hover:text-white transition-all duration-300 px-6 sm:px-8 py-3 sm:py-4 rounded-full text-base sm:text-lg"
+                className="bg-[#4A5D23] text-white hover:bg-[#3A4A1C] transition-all duration-300 px-6 sm:px-8 py-3 sm:py-4 rounded-full text-base sm:text-lg"
               >
                 View Collection
                 <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 ml-2" />
@@ -492,7 +506,7 @@ function KiowaFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
                   transition={{ duration: 0.6, delay: 0.7 + index * 0.1 }}
                   className="group"
                 >
-                  <div 
+                  <div
                     className="cursor-pointer transition-all duration-300 hover:scale-105"
                     onClick={() => onProductClick(product)}
                     onMouseEnter={() => {
@@ -511,44 +525,44 @@ function KiowaFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
                     }}
                   >
                     <div className="relative overflow-hidden rounded-lg">
-                       <Image
-                         src={product.thumbnail_url || '/placeholder-product.jpg'}
-                         alt={product.name}
-                         width={300}
-                         height={533}
-                         className={`w-full aspect-[3/4] sm:aspect-[9/16] object-cover transition-transform duration-500 ${!product.in_stock ? 'opacity-60' : ''}`}
-                         sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
-                         priority={index < 4}
-                         loading={index < 4 ? "eager" : "lazy"}
-                         placeholder="blur"
-                         blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R//2Q=="
-                       />
-                       {product.has_active_discount && (
-                         <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-md text-xs font-bold shadow-lg z-10">
-                           {product.discount_percentage ? `${product.discount_percentage}% OFF` : `₦${product.discount_amount?.toLocaleString()} OFF`}
-                         </div>
-                       )}
-                       {!product.in_stock && (
-                         <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
-                           <Badge variant="destructive" className="text-xs font-bold">
-                             Out of Stock
-                           </Badge>
-                         </div>
-                       )}
-                     </div>
+                      <Image
+                        src={(product.thumbnail_url || '/placeholder-product.jpg') as string}
+                        alt={product.name}
+                        width={300}
+                        height={533}
+                        className={`w-full aspect-[9/16] object-cover transition-transform duration-500 bg-gray-50 ${!product.in_stock ? 'opacity-60' : ''}`}
+                        sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
+                        priority={index < 4}
+                        loading={index < 4 ? "eager" : "lazy"}
+                        placeholder="blur"
+                        blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R//2Q=="
+                      />
+                      {product.has_active_discount && (
+                        <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-md text-xs font-bold shadow-lg z-10">
+                          {product.discount_percentage ? `${product.discount_percentage}% OFF` : `₦${product.discount_amount?.toLocaleString()} OFF`}
+                        </div>
+                      )}
+                      {!product.in_stock && (
+                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
+                          <Badge variant="destructive" className="text-xs font-bold">
+                            Out of Stock
+                          </Badge>
+                        </div>
+                      )}
+                    </div>
                     <div className="mt-3 sm:mt-4">
                       <h3 className="font-semibold text-black mb-2 text-sm sm:text-base line-clamp-2">{product.name}</h3>
                       <div className="space-y-1">
                         {product.has_active_discount ? (
                           <>
                             <p className="text-yellow-600 font-bold text-base sm:text-lg">₦{product.discounted_price?.toLocaleString()}</p>
-                            <p className="text-gray-500 line-through text-xs sm:text-sm">₦{product.price.toLocaleString()}</p>
+                            <p className="text-gray-500 line-through text-xs sm:text-sm">{formatProductPrice(product)}</p>
                             <p className="text-green-600 text-xs font-medium">
                               You save ₦{((product.price - (product.discounted_price || 0))).toLocaleString()}
                             </p>
                           </>
                         ) : (
-                          <p className="text-yellow-600 font-bold text-base sm:text-lg">₦{product.price.toLocaleString()}</p>
+                          <p className="text-yellow-600 font-bold text-base sm:text-lg">{formatProductPrice(product)}</p>
                         )}
                       </div>
                     </div>
@@ -569,7 +583,7 @@ function OmegeFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
     const name = brand.name.toLowerCase()
     return name.includes('omoge') || name.includes('ify') || name === 'omogebyify'
   })
-  
+
   const { data: featuredProductsData, loading, error } = useFeaturedProducts(omegeData?.id || '')
   const featuredProducts = featuredProductsData || []
 
@@ -580,15 +594,15 @@ function OmegeFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
         .slice(0, 4) // Preload first 4 products
         .map(p => p.thumbnail_url)
         .filter(Boolean)
-      
+
       if (imageUrls.length > 0) {
-        preloadImages(imageUrls).catch(() => {})
+        preloadImages(imageUrls).catch(() => { })
       }
     }
   }, [featuredProducts])
 
   return (
-    <div className="min-h-screen flex items-center bg-gradient-to-br from-red-50 to-pink-50 relative py-12 sm:py-20">
+    <div className="min-h-screen flex items-center bg-gradient-to-br from-[#fff5f6] to-[#ffeef0] relative py-12 sm:py-20">
       <div className="container mx-auto px-4 sm:px-6">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
           <motion.div
@@ -612,7 +626,7 @@ function OmegeFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
           </motion.div>
 
           <motion.div initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 1, delay: 0.2 }}>
-            <Badge className="bg-red-400 text-white mb-4 sm:mb-6 px-3 sm:px-4 py-1 sm:py-2 text-base sm:text-lg">
+            <Badge className="bg-[#E5989B] text-white mb-4 sm:mb-6 px-3 sm:px-4 py-1 sm:py-2 text-base sm:text-lg">
               {omegeData?.name || 'OmogeByIfy'}
             </Badge>
             <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-black mb-4 sm:mb-6 leading-tight">
@@ -624,12 +638,12 @@ function OmegeFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
               "Grace never goes out of style."
             </blockquote>
             <p className="text-base sm:text-lg lg:text-xl text-gray-700 mb-6 sm:mb-8 leading-relaxed max-w-lg">
-              {omegeData?.description || 'Timeless pieces that blend classic style with contemporary flair for the sophisticated woman.'}
+              Unique, and timeless pieces for the confident classy and stylish woman
             </p>
             <Link href={`/brands/${omegeData?.name.toLowerCase().replace(/\s+/g, '-') || 'omogebyify'}`}>
               <Button
                 size="lg"
-                className="bg-red-400 text-white hover:bg-black hover:text-white transition-all duration-300 px-6 sm:px-8 py-3 sm:py-4 rounded-full text-base sm:text-lg"
+                className="bg-[#E5989B] text-white hover:bg-[#D6878A] transition-all duration-300 px-6 sm:px-8 py-3 sm:py-4 rounded-full text-base sm:text-lg"
               >
                 View Collection
                 <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 ml-2" />
@@ -658,7 +672,7 @@ function OmegeFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
                   transition={{ duration: 0.6, delay: 0.7 + index * 0.1 }}
                   className="group"
                 >
-                  <div 
+                  <div
                     className="cursor-pointer transition-all duration-300 hover:scale-105"
                     onClick={() => onProductClick(product)}
                     onMouseEnter={() => {
@@ -677,31 +691,31 @@ function OmegeFrame({ brands, onProductClick }: { brands: Brand[]; onProductClic
                     }}
                   >
                     <div className="relative overflow-hidden rounded-lg">
-                       <Image
-                         src={product.thumbnail_url || '/placeholder-product.jpg'}
-                         alt={product.name}
-                         width={300}
-                         height={533}
-                         className={`w-full aspect-[3/4] sm:aspect-[9/16] object-cover transition-transform duration-500 ${!product.in_stock ? 'opacity-60' : ''}`}
-                         sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
-                         priority={index < 4}
-                         loading={index < 4 ? "eager" : "lazy"}
-                         placeholder="blur"
-                         blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R//2Q=="
-                       />
-                       {product.has_active_discount && (
-                         <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-md text-xs font-bold shadow-lg z-10">
-                           {product.discount_percentage ? `${product.discount_percentage}% OFF` : `₦${product.discount_amount?.toLocaleString()} OFF`}
-                         </div>
-                       )}
-                       {!product.in_stock && (
-                         <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
-                           <Badge variant="destructive" className="text-xs font-bold">
-                             Out of Stock
-                           </Badge>
-                         </div>
-                       )}
-                     </div>
+                      <Image
+                        src={product.thumbnail_url || '/placeholder-product.jpg'}
+                        alt={product.name}
+                        width={300}
+                        height={533}
+                        className={`w-full aspect-[9/16] object-cover transition-transform duration-500 bg-gray-50 ${!product.in_stock ? 'opacity-60' : ''}`}
+                        sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
+                        priority={index < 4}
+                        loading={index < 4 ? "eager" : "lazy"}
+                        placeholder="blur"
+                        blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R//2Q=="
+                      />
+                      {product.has_active_discount && (
+                        <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-md text-xs font-bold shadow-lg z-10">
+                          {product.discount_percentage ? `${product.discount_percentage}% OFF` : `₦${product.discount_amount?.toLocaleString()} OFF`}
+                        </div>
+                      )}
+                      {!product.in_stock && (
+                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
+                          <Badge variant="destructive" className="text-xs font-bold">
+                            Out of Stock
+                          </Badge>
+                        </div>
+                      )}
+                    </div>
                     <div className="mt-4">
                       <h3 className="font-semibold text-black mb-2 text-sm">{product.name}</h3>
                       <div className="space-y-1">
@@ -735,7 +749,7 @@ function MiniMeFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
     const name = brand.name.toLowerCase()
     return name.includes('minime') || name === 'minime' || name.includes('mini me')
   })
-  
+
   const { data: featuredProductsData, loading, error } = useFeaturedProducts(miniMeData?.id || '')
   const featuredProducts = featuredProductsData || []
 
@@ -746,19 +760,19 @@ function MiniMeFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
         .slice(0, 4) // Preload first 4 products
         .map(p => p.thumbnail_url)
         .filter(Boolean)
-      
+
       if (imageUrls.length > 0) {
-        preloadImages(imageUrls).catch(() => {})
+        preloadImages(imageUrls).catch(() => { })
       }
     }
   }, [featuredProducts])
 
   return (
-    <div className="min-h-screen flex items-center bg-gradient-to-br from-yellow-50 to-orange-50 relative py-12 sm:py-20">
+    <div className="min-h-screen flex items-center bg-gradient-to-br from-[#f5f5ff] to-[#eef0ff] relative py-12 sm:py-20">
       <div className="container mx-auto px-4 sm:px-6">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
           <motion.div initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 1 }}>
-            <Badge className="bg-yellow-400 text-black mb-4 sm:mb-6 px-3 sm:px-4 py-1 sm:py-2 text-base sm:text-lg">
+            <Badge className="bg-[#1E1B4B] text-white mb-4 sm:mb-6 px-3 sm:px-4 py-1 sm:py-2 text-base sm:text-lg">
               {miniMeData?.name || 'MiniMe'}
             </Badge>
             <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-black mb-4 sm:mb-6 leading-tight">
@@ -770,12 +784,12 @@ function MiniMeFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
               "Fashion for the next generation."
             </blockquote>
             <p className="text-base sm:text-lg lg:text-xl text-gray-700 mb-6 sm:mb-8 leading-relaxed max-w-lg">
-              {miniMeData?.description || 'Adorable and comfortable clothing designed for children who love to express their unique style.'}
+              Dresses fit for a princess
             </p>
             <Link href={`/brands/${miniMeData?.name.toLowerCase().replace(/\s+/g, '-') || 'minime'}`}>
               <Button
                 size="lg"
-                className="bg-yellow-400 text-black hover:bg-black hover:text-white transition-all duration-300 px-6 sm:px-8 py-3 sm:py-4 rounded-full text-base sm:text-lg"
+                className="bg-[#1E1B4B] text-white hover:bg-[#151336] transition-all duration-300 px-6 sm:px-8 py-3 sm:py-4 rounded-full text-base sm:text-lg"
               >
                 View Collection
                 <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 ml-2" />
@@ -823,7 +837,7 @@ function MiniMeFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6, delay: 0.7 + index * 0.1 }}
                 >
-                  <div 
+                  <div
                     className="group cursor-pointer transition-all duration-300 hover:scale-105"
                     onClick={() => onProductClick(product)}
                     onMouseEnter={() => {
@@ -842,44 +856,44 @@ function MiniMeFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
                     }}
                   >
                     <div className="relative overflow-hidden rounded-lg">
-                       <Image
-                         src={product.thumbnail_url || '/placeholder-product.jpg'}
-                         alt={product.name}
-                         width={300}
-                         height={533}
-                         className={`w-full aspect-[3/4] sm:aspect-[9/16] object-cover transition-transform duration-500 ${!product.in_stock ? 'opacity-60' : ''}`}
-                         sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
-                         priority={index < 4}
-                         loading={index < 4 ? "eager" : "lazy"}
-                         placeholder="blur"
-                         blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R//2Q=="
-                       />
-                       {product.has_active_discount && (
-                         <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-md text-xs font-bold shadow-lg z-10">
-                           {product.discount_percentage ? `${product.discount_percentage}% OFF` : `₦${product.discount_amount?.toLocaleString()} OFF`}
-                         </div>
-                       )}
-                       {!product.in_stock && (
-                         <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
-                           <Badge variant="destructive" className="text-xs font-bold">
-                             Out of Stock
-                           </Badge>
-                         </div>
-                       )}
-                     </div>
+                      <Image
+                        src={product.thumbnail_url || '/placeholder-product.jpg'}
+                        alt={product.name}
+                        width={300}
+                        height={533}
+                        className={`w-full aspect-[9/16] object-cover transition-transform duration-500 bg-gray-50 ${!product.in_stock ? 'opacity-60' : ''}`}
+                        sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
+                        priority={index < 4}
+                        loading={index < 4 ? "eager" : "lazy"}
+                        placeholder="blur"
+                        blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R//2Q=="
+                      />
+                      {product.has_active_discount && (
+                        <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-md text-xs font-bold shadow-lg z-10">
+                          {product.discount_percentage ? `${product.discount_percentage}% OFF` : `₦${product.discount_amount?.toLocaleString()} OFF`}
+                        </div>
+                      )}
+                      {!product.in_stock && (
+                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
+                          <Badge variant="destructive" className="text-xs font-bold">
+                            Out of Stock
+                          </Badge>
+                        </div>
+                      )}
+                    </div>
                     <div className="mt-4">
                       <h3 className="font-semibold text-black mb-2 text-sm">{product.name}</h3>
                       <div className="space-y-1">
                         {product.has_active_discount ? (
                           <>
                             <p className="text-green-600 font-bold text-lg">₦{product.discounted_price?.toLocaleString()}</p>
-                            <p className="text-gray-500 line-through text-sm">₦{product.price.toLocaleString()}</p>
+                            <p className="text-gray-500 line-through text-sm">{formatProductPrice(product)}</p>
                             <p className="text-green-600 text-xs font-medium">
                               You save ₦{((product.price - (product.discounted_price || 0))).toLocaleString()}
                             </p>
                           </>
                         ) : (
-                          <p className="text-green-600 font-bold text-lg">₦{product.price.toLocaleString()}</p>
+                          <p className="text-green-600 font-bold text-lg">{formatProductPrice(product)}</p>
                         )}
                       </div>
                     </div>
@@ -896,7 +910,7 @@ function MiniMeFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
 
 function OthersFrame({ brands, onProductClick }: { brands: Brand[]; onProductClick: (product: any) => void }) {
   // Use the first brand passed in (for dynamic rendering) - this will be the FavoriteThings brand
-  const othersData = brands.length === 1 ? brands[0] : brands.find(brand => 
+  const othersData = brands.length === 1 ? brands[0] : brands.find(brand =>
     brand.name.toLowerCase().includes('favoritethings') || brand.name.toLowerCase().includes('favorite')
   )
 
@@ -911,9 +925,9 @@ function OthersFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
         .slice(0, 4) // Preload first 4 products
         .map(p => p.thumbnail_url)
         .filter(Boolean)
-      
+
       if (imageUrls.length > 0) {
-        preloadImages(imageUrls).catch(() => {})
+        preloadImages(imageUrls).catch(() => { })
       }
     }
   }, [featuredProducts])
@@ -945,7 +959,7 @@ function OthersFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
 
           <motion.div initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 1, delay: 0.2 }}>
             <Badge className="bg-purple-400 text-white mb-4 sm:mb-6 px-3 sm:px-4 py-1 sm:py-2 text-base sm:text-lg">
-              {othersData?.name || 'Others'}
+              {othersData?.name || 'Favorite Things'}
             </Badge>
             <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-black mb-4 sm:mb-6 leading-tight">
               Unique &
@@ -956,9 +970,9 @@ function OthersFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
               "Discover the extraordinary."
             </blockquote>
             <p className="text-base sm:text-lg lg:text-xl text-gray-700 mb-6 sm:mb-8 leading-relaxed max-w-lg">
-              {othersData?.description || 'A carefully curated selection of unique pieces and accessories that complete your perfect look.'}
+              A carefully curated collection of your favorite things
             </p>
-            <Link href={`/brands/${othersData?.name.toLowerCase().replace(/\s+/g, '-') || 'others'}`}>
+            <Link href={`/brands/${othersData?.name.toLowerCase().replace(/\s+/g, '-') || 'favorite-things'}`}>
               <Button
                 size="lg"
                 className="bg-purple-400 text-white hover:bg-black hover:text-white transition-all duration-300 px-6 sm:px-8 py-3 sm:py-4 rounded-full text-base sm:text-lg"
@@ -990,7 +1004,7 @@ function OthersFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
                   transition={{ duration: 0.6, delay: 0.7 + index * 0.1 }}
                   className="group"
                 >
-                  <div 
+                  <div
                     className="cursor-pointer transition-all duration-300 hover:scale-105"
                     onClick={() => onProductClick(product)}
                     onMouseEnter={() => {
@@ -1014,7 +1028,7 @@ function OthersFrame({ brands, onProductClick }: { brands: Brand[]; onProductCli
                         alt={product.name}
                         width={300}
                         height={533}
-                        className={`w-full aspect-[3/4] sm:aspect-[9/16] object-cover transition-transform duration-500 ${!product.in_stock ? 'opacity-60' : ''}`}
+                        className={`w-full aspect-[9/16] object-cover transition-transform duration-500 bg-gray-50 ${!product.in_stock ? 'opacity-60' : ''}`}
                         sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
                         priority={index < 4}
                         loading={index < 4 ? "eager" : "lazy"}
@@ -1091,7 +1105,7 @@ function FooterFrame() {
             <div>
               <h3 className="text-lg font-semibold mb-4">Follow Us</h3>
               <div className="flex justify-center">
-                <a 
+                <a
                   href="https://www.instagram.com/favoritethingsngr?igsh=cmNvaDlhMzY0aGd4"
                   target="_blank"
                   rel="noopener noreferrer"
@@ -1128,11 +1142,6 @@ export default function HomePage() {
   // Handle cache clearing on navigation
   useNavigationCache()
 
-  // Prefetch ProductModal chunk to avoid runtime chunk load errors
-  useEffect(() => {
-    import("@/components/product-modal")
-  }, [])
-
   // Don't invalidate cache on page load - let it use cached data for faster loading
   // Cache will be invalidated naturally when TTL expires or on navigation
 
@@ -1144,9 +1153,9 @@ export default function HomePage() {
         .filter(brand => brand.is_active && brand.image_url)
         .slice(0, 3)
         .map(brand => brand.image_url)
-      
+
       if (brandImages.length > 0) {
-        preloadImages(brandImages).catch(() => {})
+        preloadImages(brandImages).catch(() => { })
       }
     }
   }, [brands, brandsLoading])
@@ -1183,7 +1192,7 @@ export default function HomePage() {
             </div>
             <span className="text-black font-bold text-lg">Favorite Things</span>
           </div>
-          
+
           {/* Actions */}
           <div className="flex items-center space-x-2">
             {/* Search Button */}
@@ -1192,10 +1201,10 @@ export default function HomePage() {
                 <Search className="w-4 h-4" />
               </Button>
             </Link>
-            
+
             {/* Login/Account Button */}
-            <Button 
-              size="sm" 
+            <Button
+              size="sm"
               onClick={handleAccountClick}
               className="bg-black hover:bg-gray-800 text-yellow-400 px-3 py-2"
             >
@@ -1219,7 +1228,7 @@ export default function HomePage() {
         {!brandsLoading && brands.filter(brand => brand.is_active).map((brand) => {
           const sectionId = getSectionId(brand.name)
           const brandName = brand.name.toLowerCase()
-          
+
           // Determine which frame component to use based on brand characteristics
           if (brandName.includes('kiowa') || brandName === 'kiowa') {
             return (

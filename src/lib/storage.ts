@@ -6,15 +6,22 @@ export interface UploadResult {
   error?: string
 }
 
-export async function uploadBrandImage(file: File, brandId?: string): Promise<UploadResult> {
+export async function uploadBrandImage(
+  file: File,
+  brandId?: string,
+  supabaseClient?: any
+): Promise<UploadResult> {
   try {
+    // Use provided client or fall back to default
+    const client = supabaseClient || supabase
+
     // Generate a unique filename
     const fileExt = file.name.split('.').pop()
     const fileName = `${brandId || Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
     const filePath = `brands/${fileName}`
 
     // Upload file to Supabase Storage
-    const { data, error } = await supabase.storage
+    const { data, error } = await client.storage
       .from('brand-images')
       .upload(filePath, file, {
         cacheControl: '3600',
@@ -27,7 +34,7 @@ export async function uploadBrandImage(file: File, brandId?: string): Promise<Up
     }
 
     // Get public URL
-    const { data: urlData } = supabase.storage
+    const { data: urlData } = client.storage
       .from('brand-images')
       .getPublicUrl(data.path)
 
@@ -71,13 +78,13 @@ export function getImageUrl(path: string): string {
   const { data } = supabase.storage
     .from('brand-images')
     .getPublicUrl(path)
-  
+
   return data.publicUrl
 }
 
 export async function uploadProductImages(files: File[], productId?: string): Promise<UploadResult[]> {
   const results: UploadResult[] = []
-  
+
   for (let i = 0; i < files.length; i++) {
     const file = files[i]
     try {
@@ -117,7 +124,7 @@ export async function uploadProductImages(files: File[], productId?: string): Pr
       })
     }
   }
-  
+
   return results
 }
 

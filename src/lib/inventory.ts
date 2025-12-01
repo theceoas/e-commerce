@@ -52,18 +52,37 @@ export async function reduceStock(items: CartItem[], orderId?: string): Promise<
       return stockCheck
     }
 
-    // Process stock reduction for each product
-    for (const item of items) {
-      // Skip items without size (shouldn't happen in normal flow)
-      if (!item.size) {
-        throw new Error(`No size specified for product ${item.product_id}`)
-      }
+    // Prepare items for RPC call
+    const rpcItems = items.map(item => ({
+      product_id: item.product_id,
+      size: item.size,
+      quantity: item.quantity
+    }));
 
-      const { error } = await reduceProductStock(item.product_id, item.size, item.quantity, orderId)
-      if (error) {
-        throw new Error(`Failed to reduce stock for product ${item.product_id}: ${error}`)
-      }
+    // Call the secure RPC function
+    const { error } = await supabase.rpc('reduce_stock', { items: rpcItems });
+
+    if (error) {
+      console.error('RPC stock reduction error:', error);
+      throw new Error(error.message);
     }
+
+    // Log inventory history (best effort, don't fail if this fails)
+    // We do this separately because the RPC focuses on the critical path
+    items.forEach(item => {
+      if (item.size) {
+        logInventoryHistory({
+          product_id: item.product_id,
+          size: item.size,
+          change_type: 'sale',
+          quantity_before: 0, // We don't know this without fetching, skipping for perf
+          quantity_after: 0,  // We don't know this without fetching, skipping for perf
+          quantity_changed: -item.quantity,
+          reason: orderId ? `Order placed: ${orderId}` : 'Stock reduction',
+          order_id: orderId
+        }).catch(e => console.error('Failed to log history:', e));
+      }
+    });
 
     return { success: true }
   } catch (error) {

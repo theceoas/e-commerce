@@ -1,13 +1,17 @@
 'use client'
 
 import Image from 'next/image'
+import { isSupabaseUrl } from '@/lib/image-utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Minus, Plus, Trash2, ShoppingBag } from 'lucide-react'
-import { CartItem } from '@/lib/supabase'
+import { createClient } from '@/utils/supabase/client'
+import { type CartItem } from '@/lib/supabase'
+
+const supabase = createClient()
 
 interface ShoppingCartProps {
   isOpen: boolean
@@ -32,11 +36,11 @@ export function ShoppingCart({
       const basePrice = (item as any).size_price !== undefined && (item as any).size_price !== null
         ? (item as any).size_price
         : item.product.price
-      
-      const price = item.product.has_active_discount && item.product.discounted_price 
-        ? item.product.discounted_price 
+
+      const price = item.product.has_active_discount && item.product.discounted_price
+        ? item.product.discounted_price
         : basePrice
-      
+
       return total + (price * item.quantity)
     },
     0
@@ -72,14 +76,15 @@ export function ShoppingCart({
                   <div key={item.id} className="flex gap-4">
                     <div className="relative h-16 w-16 rounded-md overflow-hidden">
                       <Image
-                        src={item.product.image_url || '/placeholder-product.jpg'}
+                        src={(item.product.image_url || '/placeholder-product.jpg') as string}
                         alt={item.product.name}
                         fill
                         className="object-cover"
                         sizes="64px"
+                        unoptimized={isSupabaseUrl(item.product.image_url as string)}
                       />
                     </div>
-                    
+
                     <div className="flex-1 space-y-1">
                       <h4 className="font-medium text-sm line-clamp-1">
                         {item.product.name}
@@ -90,11 +95,11 @@ export function ShoppingCart({
                           const basePrice = (item as any).size_price !== undefined && (item as any).size_price !== null
                             ? (item as any).size_price
                             : item.product.price
-                          
+
                           const displayPrice = item.product.has_active_discount && item.product.discounted_price
                             ? item.product.discounted_price
                             : basePrice
-                          
+
                           return item.product.has_active_discount && item.product.discounted_price ? (
                             <div className="flex items-center gap-2">
                               <span>₦{displayPrice.toLocaleString()} each</span>
@@ -135,7 +140,7 @@ export function ShoppingCart({
                         </Button>
                       </div>
                     </div>
-                    
+
                     <div className="text-right">
                       <p className="font-medium">
                         {(() => {
@@ -143,11 +148,11 @@ export function ShoppingCart({
                           const basePrice = (item as any).size_price !== undefined && (item as any).size_price !== null
                             ? (item as any).size_price
                             : item.product.price
-                          
+
                           const price = item.product.has_active_discount && item.product.discounted_price
                             ? item.product.discounted_price
                             : basePrice
-                          
+
                           return `₦${(price * item.quantity).toLocaleString()}`
                         })()}
                       </p>
@@ -176,16 +181,16 @@ export function ShoppingCart({
               </div>
 
               <div className="space-y-2">
-                <Button 
-                  className="w-full" 
+                <Button
+                  className="w-full"
                   onClick={onCheckout}
                   disabled={cartItems.length === 0}
                 >
                   Checkout
                 </Button>
-                <Button 
-                  variant="outline" 
-                  className="w-full" 
+                <Button
+                  variant="outline"
+                  className="w-full"
                   onClick={onClose}
                 >
                   Continue Shopping

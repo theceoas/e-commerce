@@ -21,10 +21,11 @@ import {
   Eye,
   EyeOff
 } from "lucide-react"
-import { supabase } from "@/lib/supabase"
+import { createClient } from "@/utils/supabase/client"
+import { toast } from "sonner"
 import { uploadBrandImage, deleteBrandImage } from "@/lib/storage"
 
-import { DevImageSpeed } from "@/components/dev-image-speed"
+
 
 import Image from "next/image"
 
@@ -48,6 +49,7 @@ export default function BrandsManagement() {
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null)
   const router = useRouter()
   const { user, loading: authLoading, isAdmin } = useAuth()
+  const supabase = createClient()
 
   useEffect(() => {
     if (!authLoading) {
@@ -61,15 +63,24 @@ export default function BrandsManagement() {
 
   const loadBrands = async () => {
     try {
-      const { data, error } = await supabase
+      // Wrap query in timeout to prevent infinite loading
+      const brandsPromise = supabase
         .from('brands')
         .select('*')
         .order('display_order', { ascending: true })
+
+      const { data, error } = await Promise.race([
+        brandsPromise,
+        new Promise<any>((_, reject) =>
+          setTimeout(() => reject(new Error('Request timed out')), 10000)
+        )
+      ])
 
       if (error) throw error
       setBrands(data || [])
     } catch (error) {
       console.error('Error loading brands:', error)
+      toast.error('Failed to load brands')
     } finally {
       setLoading(false)
     }
@@ -91,10 +102,10 @@ export default function BrandsManagement() {
 
       // Upload new image if selected
       if (selectedImageFile) {
-        const uploadResult = await uploadBrandImage(selectedImageFile, editingId)
+        const uploadResult = await uploadBrandImage(selectedImageFile, editingId, supabase)
         if (uploadResult.success && uploadResult.url) {
           imageUrl = uploadResult.url
-          
+
           // Delete old image if it exists and is different
           if (editForm.image_url && editForm.image_url !== imageUrl) {
             await deleteBrandImage(editForm.image_url)
@@ -125,19 +136,19 @@ export default function BrandsManagement() {
       }
 
       // Update local state
-      setBrands(brands.map(brand => 
+      setBrands(brands.map(brand =>
         brand.id === editingId ? { ...brand, ...updateData } : brand
       ))
-      
+
       setEditingId(null)
       setEditForm({})
       setSelectedImageFile(null)
-      
+
       // Show success message
-      alert('Brand updated successfully!')
+      toast.success('Brand updated successfully!')
     } catch (error) {
       console.error('Error updating brand:', error)
-      alert(`Error updating brand: ${error instanceof Error ? error.message : JSON.stringify(error)}`)
+      toast.error(`Error updating brand: ${error instanceof Error ? error.message : JSON.stringify(error)}`)
     } finally {
       setUploadingImage(false)
     }
@@ -155,7 +166,7 @@ export default function BrandsManagement() {
 
   const handleImageRemove = () => {
     setSelectedImageFile(null)
-    setEditForm({...editForm, image_url: ''})
+    setEditForm({ ...editForm, image_url: '' })
   }
 
   const toggleActive = async (brand: Brand) => {
@@ -207,8 +218,8 @@ export default function BrandsManagement() {
                 <p className="text-gray-600">Manage your brand thumbnails and information</p>
               </div>
               <div className="flex items-center gap-4">
-                <Button 
-                  onClick={() => alert(`User: ${user?.email}, Admin: ${isAdmin}, ID: ${user?.id}`)}
+                <Button
+                  onClick={() => toast.info(`User: ${user?.email}, Admin: ${isAdmin}, ID: ${user?.id}`)}
                   variant="outline"
                   size="sm"
                 >
@@ -224,10 +235,7 @@ export default function BrandsManagement() {
 
         {/* Main Content */}
         <div className="container mx-auto px-6 py-8">
-          {/* Dev-only image speed widget */}
-          {process.env.NODE_ENV !== 'production' && (
-            <DevImageSpeed title="Admin Brands Image Speed" />
-          )}
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {brands.map((brand, index) => (
               <motion.div
@@ -260,10 +268,9 @@ export default function BrandsManagement() {
                         )}
                       </Button>
                     </div>
-                    <Badge 
-                      className={`absolute top-2 left-2 ${
-                        brand.is_active ? 'bg-green-500 text-white' : 'bg-gray-400 text-white'
-                      }`}
+                    <Badge
+                      className={`absolute top-2 left-2 ${brand.is_active ? 'bg-green-500 text-white' : 'bg-gray-400 text-white'
+                        }`}
                     >
                       {brand.is_active ? 'Active' : 'Inactive'}
                     </Badge>
@@ -279,7 +286,7 @@ export default function BrandsManagement() {
                               <Input
                                 id={`name-${brand.id}`}
                                 value={editForm.name || ''}
-                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditForm({...editForm, name: e.target.value})}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditForm({ ...editForm, name: e.target.value })}
                                 className="border-gray-200 focus:border-yellow-500 focus:ring-yellow-500"
                               />
                             </div>
@@ -346,7 +353,7 @@ export default function BrandsManagement() {
                         <Textarea
                           id={`desc-${brand.id}`}
                           value={editForm.description || ''}
-                          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setEditForm({...editForm, description: e.target.value})}
+                          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setEditForm({ ...editForm, description: e.target.value })}
                           className="border-gray-200 focus:border-yellow-500 focus:ring-yellow-500 mt-1"
                           rows={3}
                         />

@@ -1,4 +1,6 @@
-import { supabase } from './supabase'
+import { createClient } from '@/utils/supabase/client'
+
+const supabase = createClient()
 
 export interface PromotionValidationResult {
   isValid: boolean
@@ -173,14 +175,14 @@ function calculateDiscount(promotion: any, applicableItems: CartItem[], subtotal
 
   if (promotion.discount_type === 'percentage') {
     discountAmount = (applicableSubtotal * promotion.discount_value) / 100
-    
+
     // Apply maximum discount limit if set
     if (promotion.maximum_discount_amount && discountAmount > promotion.maximum_discount_amount) {
       discountAmount = promotion.maximum_discount_amount
     }
   } else if (promotion.discount_type === 'fixed_amount') {
     discountAmount = promotion.discount_value
-    
+
     // Don't exceed the applicable subtotal
     if (discountAmount > applicableSubtotal) {
       discountAmount = applicableSubtotal

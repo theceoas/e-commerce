@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/server';
 
 export async function GET(request: NextRequest) {
+  const supabase = await createClient()
   try {
     const { searchParams } = new URL(request.url);
-    
+
     // Get query parameters
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '50');
@@ -12,10 +13,10 @@ export async function GET(request: NextRequest) {
     const sortBy = searchParams.get('sortBy') || 'created_at';
     const sortOrder = searchParams.get('sortOrder') || 'desc';
     const tier = searchParams.get('tier') || '';
-    
+
     // Calculate offset for pagination
     const offset = (page - 1) * limit;
-    
+
     // Build the base query
     let query = supabase
       .from('profiles')
@@ -84,7 +85,7 @@ export async function GET(request: NextRequest) {
 
           const ordersCount = orderStats?.length || 0;
           const totalSpent = orderStats?.reduce((sum, order) => sum + order.total_amount, 0) || 0;
-          const lastOrderDate = orderStats?.length > 0 
+          const lastOrderDate = orderStats?.length > 0
             ? orderStats.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0].created_at
             : null;
 
@@ -128,7 +129,7 @@ export async function GET(request: NextRequest) {
     // Calculate summary statistics
     const totalCustomers = count || 0;
     const totalRevenue = customersWithStats.reduce((sum, customer) => sum + customer.total_spent, 0);
-    const averageOrderValue = customersWithStats.length > 0 
+    const averageOrderValue = customersWithStats.length > 0
       ? customersWithStats.reduce((sum, customer) => sum + customer.orders_count, 0) / customersWithStats.length
       : 0;
 
@@ -173,6 +174,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const supabase = await createClient()
   try {
     const body = await request.json();
     const { email, first_name, last_name, phone } = body;
@@ -242,10 +244,11 @@ export async function POST(request: NextRequest) {
 
 // Get specific customer by ID
 export async function PUT(request: NextRequest) {
+  const supabase = await createClient()
   try {
     const { searchParams } = new URL(request.url);
     const customerId = searchParams.get('id');
-    
+
     if (!customerId) {
       return NextResponse.json(
         { error: 'Customer ID is required' },

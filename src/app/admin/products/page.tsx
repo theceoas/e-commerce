@@ -43,6 +43,7 @@ import {
 import { supabase } from "@/lib/supabase"
 import { uploadProductImages } from "@/lib/storage"
 import { toast, Toaster } from "sonner"
+import { withQueryTimeout } from '@/lib/query-timeout';
 
 interface Product {
   id: string
@@ -154,38 +155,69 @@ export default function ProductsManagement() {
   const [isUploading, setIsUploading] = useState(false)
   const [mainImageIndex, setMainImageIndex] = useState(0)
 
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalProducts, setTotalProducts] = useState(0);
+  const ITEMS_PER_PAGE = 50;
+
   // Optimize data fetching with parallel requests and memoization
   useEffect(() => {
     if (user) {
-      const fetchData = async () => {
-        try {
-          const [productsResult, brandsResult] = await Promise.all([
-            supabase
-              .from('products_with_discounts')
-              .select('id, name, description, price, thumbnail_url, additional_images, in_stock, brand_id, sizes, created_at, featured, discount_percentage, discount_amount, discount_start_date, discount_end_date, discount_active, discounted_price, has_active_discount')
-              .order('created_at', { ascending: false }),
-            supabase
-              .from('brands')
-              .select('id, name, image_url, is_active, description')
-              .eq('is_active', true)
-              .order('name')
-          ])
-
-          if (productsResult.error) throw productsResult.error
-          if (brandsResult.error) throw brandsResult.error
-
-          setProducts(productsResult.data || [])
-          setBrands(brandsResult.data || [])
-        } catch (error) {
-          toast.error('Failed to fetch data')
-        } finally {
-          setLoading(false)
-        }
-      }
-
-      fetchData()
+      fetchData(page);
     }
-  }, [user])
+  }, [user, page]);
+
+  const fetchData = async (currentPage = 1) => {
+    try {
+      setLoading(true);
+
+      // Wrap with 15-second timeout to prevent infinite loading
+      const result = await withQueryTimeout(async () => {
+        // First get total count for products
+        const { count, error: countError } = await supabase
+          .from('products_with_discounts')
+          .select('*', { count: 'exact', head: true });
+
+        if (countError) throw countError;
+
+        setTotalProducts(count || 0);
+        setTotalPages(Math.ceil((count || 0) / ITEMS_PER_PAGE));
+
+        // Calculate range
+        const from = (currentPage - 1) * ITEMS_PER_PAGE;
+        const to = from + ITEMS_PER_PAGE - 1;
+
+        const [productsResult, brandsResult] = await Promise.all([
+          supabase
+            .from('products_with_discounts')
+            .select('id, name, description, price, thumbnail_url, additional_images, in_stock, brand_id, sizes, created_at, featured, discount_percentage, discount_amount, discount_start_date, discount_end_date, discount_active, discounted_price, has_active_discount')
+            .order('created_at', { ascending: false })
+            .range(from, to),
+          supabase
+            .from('brands')
+            .select('id, name, image_url, is_active, description')
+            .eq('is_active', true)
+            .order('name')
+        ])
+
+        if (productsResult.error) throw productsResult.error
+        if (brandsResult.error) throw brandsResult.error
+
+        return {
+          products: productsResult.data || [],
+          brands: brandsResult.data || []
+        };
+      }, 15000); // 15 second timeout
+
+      setProducts(result.products)
+      setBrands(result.brands)
+    } catch (error) {
+      console.error('Error fetching data:', error)
+      toast.error('Failed to fetch data')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   // Memoize filtered products for better performance
   const filteredProducts = useMemo(() => {
@@ -196,12 +228,16 @@ export default function ProductsManagement() {
     )
   }, [products, searchQuery])
 
-  const fetchProducts = async () => {
+  const fetchProducts = async (currentPage = page) => {
     try {
+      const from = (currentPage - 1) * ITEMS_PER_PAGE;
+      const to = from + ITEMS_PER_PAGE - 1;
+
       const { data, error } = await supabase
-      .from('products_with_discounts')
-      .select('id, name, description, price, thumbnail_url, additional_images, in_stock, brand_id, sizes, created_at, featured, discount_percentage, discount_amount, discount_start_date, discount_end_date, discount_active, discounted_price, has_active_discount')
-      .order('created_at', { ascending: false })
+        .from('products_with_discounts')
+        .select('id, name, description, price, thumbnail_url, additional_images, in_stock, brand_id, sizes, created_at, featured, discount_percentage, discount_amount, discount_start_date, discount_end_date, discount_active, discounted_price, has_active_discount')
+        .order('created_at', { ascending: false })
+        .range(from, to)
 
       if (error) throw error
       setProducts(data || [])
@@ -298,25 +334,43 @@ export default function ProductsManagement() {
   const handleCreateProduct = async () => {
     try {
       setIsLoading(true)
-      
+
       // Upload images first if any are selected
       let imageUrls: string[] = []
       if (selectedImages.length > 0) {
         const uploadResults = await uploadProductImages(selectedImages)
         const successfulUploads = uploadResults.filter(result => result.success)
-        
+
         if (successfulUploads.length !== selectedImages.length) {
           toast.error('Some images failed to upload')
           return
         }
-        
+
         imageUrls = successfulUploads.map(result => result.url!).filter(Boolean)
       }
 
       // Prepare product data
       const thumbnailUrl = imageUrls[mainImageIndex] || ''
       const additionalImages = imageUrls.filter((_, index) => index !== mainImageIndex)
-      
+
+      // Filter and prepare sizes
+      const processedSizes = formData.sizes
+        .filter(size => size.size.trim() !== '')
+        .map((size): { size: string; stock: number; price?: number } => {
+          const sizeObj: { size: string; stock: number; price?: number } = {
+            size: size.size,
+            stock: size.stock,
+          }
+          if ((size as ProductSize).price !== undefined && (size as ProductSize).price !== null) {
+            sizeObj.price = (size as ProductSize).price
+          }
+          return sizeObj
+        });
+
+      // Auto-calculate in_stock based on whether any size has stock > 0
+      const hasStockInSizes = processedSizes.some(size => (size.stock || 0) > 0);
+      const autoInStock = hasStockInSizes;
+
       const productData = {
         name: formData.name,
         description: formData.description,
@@ -324,25 +378,13 @@ export default function ProductsManagement() {
         thumbnail_url: thumbnailUrl,
         additional_images: additionalImages,
         brand_id: formData.brand_id,
-        in_stock: formData.in_stock,
-        sizes: formData.sizes
-          .filter(size => size.size.trim() !== '')
-          .map((size): { size: string; stock: number; price?: number } => {
-            const sizeObj: { size: string; stock: number; price?: number } = {
-              size: size.size,
-              stock: size.stock,
-            }
-            if ((size as ProductSize).price !== undefined && (size as ProductSize).price !== null) {
-              sizeObj.price = (size as ProductSize).price
-            }
-            return sizeObj
-          }),
+        in_stock: autoInStock, // Auto-calculated instead of formData.in_stock
+        sizes: processedSizes,
         featured: formData.featured,
         discount_percentage: formData.discount_percentage ? parseFloat(formData.discount_percentage) : null,
         discount_amount: formData.discount_amount ? parseFloat(formData.discount_amount) : null,
         discount_start_date: formData.discount_start_date || null,
         discount_end_date: formData.discount_end_date || null,
-        discount_active: formData.discount_active
       }
 
       const { error } = await supabase
@@ -368,7 +410,7 @@ export default function ProductsManagement() {
 
     try {
       setIsUploading(true)
-      
+
       // Upload new images if any
       let uploadedImageUrls: string[] = []
       if (selectedImages.length > 0) {
@@ -376,7 +418,7 @@ export default function ProductsManagement() {
         uploadedImageUrls = uploadResults
           .filter(result => result.success)
           .map(result => result.url!)
-        
+
         if (uploadResults.some(result => !result.success)) {
           toast.error('Some images failed to upload')
         }
@@ -385,12 +427,30 @@ export default function ProductsManagement() {
       // Combine existing images with new uploaded images
       const existingImages = formData.additional_images.filter(img => img.trim() !== '')
       const allImages = [...existingImages, ...uploadedImageUrls]
-      
+
       // Set thumbnail from main image if not manually set
       let thumbnailUrl = formData.thumbnail_url
       if (!thumbnailUrl && allImages.length > 0) {
         thumbnailUrl = allImages[mainImageIndex] || allImages[0]
       }
+
+      // Filter and prepare sizes
+      const processedSizes = formData.sizes
+        .filter(size => size.size.trim() !== '')
+        .map((size): { size: string; stock: number; price?: number } => {
+          const sizeObj: { size: string; stock: number; price?: number } = {
+            size: size.size,
+            stock: size.stock,
+          }
+          if ((size as ProductSize).price !== undefined && (size as ProductSize).price !== null) {
+            sizeObj.price = (size as ProductSize).price
+          }
+          return sizeObj
+        });
+
+      // Auto-calculate in_stock based on whether any size has stock > 0
+      const hasStockInSizes = processedSizes.some(size => (size.stock || 0) > 0);
+      const autoInStock = hasStockInSizes;
 
       const productData = {
         name: formData.name,
@@ -399,19 +459,8 @@ export default function ProductsManagement() {
         thumbnail_url: thumbnailUrl,
         additional_images: allImages,
         brand_id: formData.brand_id,
-        in_stock: formData.in_stock,
-        sizes: formData.sizes
-          .filter(size => size.size.trim() !== '')
-          .map((size): { size: string; stock: number; price?: number } => {
-            const sizeObj: { size: string; stock: number; price?: number } = {
-              size: size.size,
-              stock: size.stock,
-            }
-            if ((size as ProductSize).price !== undefined && (size as ProductSize).price !== null) {
-              sizeObj.price = (size as ProductSize).price
-            }
-            return sizeObj
-          }),
+        in_stock: autoInStock, // Auto-calculated instead of formData.in_stock
+        sizes: processedSizes,
         featured: formData.featured,
         discount_percentage: formData.discount_percentage ? parseFloat(formData.discount_percentage) : null,
         discount_amount: formData.discount_amount ? parseFloat(formData.discount_amount) : null,
@@ -451,7 +500,7 @@ export default function ProductsManagement() {
 
       // Immediately update the local state to remove the product from UI
       setProducts(prevProducts => prevProducts.filter(product => product.id !== productId))
-      
+
       toast.success('Product deleted successfully!')
     } catch (error) {
       console.error('Error deleting product:', error)
@@ -473,14 +522,14 @@ export default function ProductsManagement() {
       if (error) throw error
 
       // Update local state
-      setProducts(prevProducts => 
-        prevProducts.map(product => 
-          product.id === productId 
+      setProducts(prevProducts =>
+        prevProducts.map(product =>
+          product.id === productId
             ? { ...product, featured: newFeaturedStatus }
             : product
         )
       )
-      
+
       toast.success(newFeaturedStatus ? 'Product marked as featured!' : 'Product removed from featured!')
     } catch (error) {
       console.error('Error toggling featured status:', error)
@@ -491,30 +540,30 @@ export default function ProductsManagement() {
   const openEditDialog = (product: Product) => {
     setEditingProduct(product)
     // Ensure sizes have price field (for existing products that might not have it)
-    const sizesWithPrice = product.sizes?.length > 0 
-      ? product.sizes.map(size => ({ 
-          size: size.size, 
-          stock: size.stock, 
-          price: (size as any).price || undefined 
-        }))
+    const sizesWithPrice = product.sizes?.length > 0
+      ? product.sizes.map(size => ({
+        size: size.size,
+        stock: size.stock,
+        price: (size as any).price || undefined
+      }))
       : [{ size: '', stock: 0 }]
-    
+
     setFormData({
-        name: product.name,
-        description: product.description,
-        price: product.price.toString(),
-        thumbnail_url: product.thumbnail_url || '',
-        additional_images: product.additional_images?.length > 0 ? product.additional_images : [''],
-        brand_id: product.brand_id,
-        in_stock: product.in_stock,
-        sizes: sizesWithPrice,
-        featured: product.featured || false,
-        discount_percentage: product.discount_percentage?.toString() || '',
-        discount_amount: product.discount_amount?.toString() || '',
-        discount_start_date: product.discount_start_date || '',
-        discount_end_date: product.discount_end_date || '',
-        discount_active: product.discount_active || false
-      })
+      name: product.name,
+      description: product.description,
+      price: product.price.toString(),
+      thumbnail_url: product.thumbnail_url || '',
+      additional_images: product.additional_images?.length > 0 ? product.additional_images : [''],
+      brand_id: product.brand_id,
+      in_stock: product.in_stock,
+      sizes: sizesWithPrice,
+      featured: product.featured || false,
+      discount_percentage: product.discount_percentage?.toString() || '',
+      discount_amount: product.discount_amount?.toString() || '',
+      discount_start_date: product.discount_start_date || '',
+      discount_end_date: product.discount_end_date || '',
+      discount_active: product.discount_active || false
+    })
     setSelectedImages([])
     setMainImageIndex(0)
     setIsEditDialogOpen(true)
@@ -532,7 +581,7 @@ export default function ProductsManagement() {
       const updatedSizes = [...inventoryProduct.sizes]
       const currentStock = updatedSizes[sizeIndex].stock
       const newStock = Math.max(0, currentStock + adjustment)
-      
+
       updatedSizes[sizeIndex] = {
         ...updatedSizes[sizeIndex],
         stock: newStock
@@ -547,10 +596,10 @@ export default function ProductsManagement() {
 
       // Update local state
       setInventoryProduct(prev => prev ? { ...prev, sizes: updatedSizes } : null)
-      
+
       // Update products list
-      setProducts(prev => prev.map(product => 
-        product.id === productId 
+      setProducts(prev => prev.map(product =>
+        product.id === productId
           ? { ...product, sizes: updatedSizes }
           : product
       ))
@@ -631,7 +680,7 @@ export default function ProductsManagement() {
       acc[brandId].push(product)
       return acc
     }, {} as Record<string, Product[]>)
-    
+
     return Object.entries(grouped).map(([brandId, products]) => ({
       brandId,
       brandName: getBrandName(brandId),
@@ -653,7 +702,7 @@ export default function ProductsManagement() {
                 <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Products Management</h1>
                 <p className="text-sm sm:text-base text-gray-600 mt-2">Manage your product catalog</p>
               </div>
-              
+
               <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
                 <DialogTrigger asChild>
                   <Button onClick={resetForm} className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto text-sm">
@@ -666,855 +715,888 @@ export default function ProductsManagement() {
                   <DialogHeader>
                     <DialogTitle>Create New Product</DialogTitle>
                     <DialogDescription>
-                    Add a new product to your catalog
-                  </DialogDescription>
-                </DialogHeader>
-                
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+                      Add a new product to your catalog
+                    </DialogDescription>
+                  </DialogHeader>
+
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="name">Product Name</Label>
+                        <Input
+                          id="name"
+                          value={formData.name}
+                          onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                          placeholder="Enter product name"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="price">Price (₦)</Label>
+                        <Input
+                          id="price"
+                          type="number"
+                          step="0.01"
+                          value={formData.price}
+                          onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
+                          placeholder="0.00"
+                        />
+                      </div>
+                    </div>
+
                     <div>
-                      <Label htmlFor="name">Product Name</Label>
-                      <Input
-                        id="name"
-                        value={formData.name}
-                        onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                        placeholder="Enter product name"
+                      <Label htmlFor="description">Description</Label>
+                      <Textarea
+                        id="description"
+                        value={formData.description}
+                        onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                        placeholder="Enter product description"
+                        rows={3}
                       />
                     </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="brand">Brand</Label>
+                        <Select value={formData.brand_id} onValueChange={(value: string) => setFormData(prev => ({ ...prev, brand_id: value }))}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a brand" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {brands.map((brand) => (
+                              <SelectItem key={brand.id} value={brand.id}>
+                                {brand.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
                     <div>
-                      <Label htmlFor="price">Price (₦)</Label>
-                      <Input
-                        id="price"
-                        type="number"
-                        step="0.01"
-                        value={formData.price}
-                        onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
-                        placeholder="0.00"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <Label htmlFor="description">Description</Label>
-                    <Textarea
-                      id="description"
-                      value={formData.description}
-                      onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                      placeholder="Enter product description"
-                      rows={3}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="brand">Brand</Label>
-                      <Select value={formData.brand_id} onValueChange={(value: string) => setFormData(prev => ({ ...prev, brand_id: value }))}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a brand" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {brands.map((brand) => (
-                            <SelectItem key={brand.id} value={brand.id}>
-                              {brand.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <Label>Sizes & Stock</Label>
-                      <Button type="button" variant="outline" size="sm" onClick={addSize}>
-                        <Plus className="h-4 w-4 mr-1" />
-                        Add Size
-                      </Button>
-                    </div>
-                    <div className="space-y-2">
-                      {isMiniMeBrand && (
-                        <p className="text-sm text-blue-600 mb-2">
-                          💡 MiniMe products support different prices per size. Leave price empty to use base product price.
-                        </p>
-                      )}
-                      {formData.sizes.map((size, index) => (
-                        <div key={`size-${index}-${size.size}`} className="flex items-center gap-2">
-                          <Input
-                            placeholder="Size (e.g., S, M, L, XL)"
-                            value={size.size}
-                            onChange={(e) => updateSize(index, 'size', e.target.value)}
-                            className="flex-1"
-                          />
-                          <Input
-                            type="number"
-                            placeholder="Stock"
-                            value={size.stock}
-                            onChange={(e) => updateSize(index, 'stock', parseInt(e.target.value) || 0)}
-                            className="w-24"
-                            min="0"
-                          />
-                          {isMiniMeBrand && (
+                      <div className="flex items-center justify-between mb-2">
+                        <Label>Sizes & Stock</Label>
+                        <Button type="button" variant="outline" size="sm" onClick={addSize}>
+                          <Plus className="h-4 w-4 mr-1" />
+                          Add Size
+                        </Button>
+                      </div>
+                      <div className="space-y-2">
+                        {isMiniMeBrand && (
+                          <p className="text-sm text-blue-600 mb-2">
+                            💡 MiniMe products support different prices per size. Leave price empty to use base product price.
+                          </p>
+                        )}
+                        {formData.sizes.map((size, index) => (
+                          <div key={`size-${index}-${size.size}`} className="flex items-center gap-2">
+                            <Input
+                              placeholder="Size (e.g., S, M, L, XL)"
+                              value={size.size}
+                              onChange={(e) => updateSize(index, 'size', e.target.value)}
+                              className="flex-1"
+                            />
                             <Input
                               type="number"
-                              placeholder="Price (optional)"
-                              value={(size as ProductSize).price || ''}
-                              onChange={(e) => updateSize(index, 'price', parseFloat(e.target.value) || undefined)}
-                              className="w-32"
+                              placeholder="Stock"
+                              value={size.stock}
+                              onChange={(e) => updateSize(index, 'stock', parseInt(e.target.value) || 0)}
+                              className="w-24"
                               min="0"
-                              step="0.01"
                             />
-                          )}
-                          {formData.sizes.length > 1 && (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => removeSize(index)}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-                      ))}
+                            {isMiniMeBrand && (
+                              <Input
+                                type="number"
+                                placeholder="Price (optional)"
+                                value={(size as ProductSize).price || ''}
+                                onChange={(e) => updateSize(index, 'price', parseFloat(e.target.value) || undefined)}
+                                className="w-32"
+                                min="0"
+                                step="0.01"
+                              />
+                            )}
+                            {formData.sizes.length > 1 && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => removeSize(index)}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
 
-                  <div>
-                    <Label>Product Images</Label>
-                    <Suspense fallback={<div className="h-32 bg-gray-200 rounded animate-pulse" />}>
-                      <MultiImageUpload
-                        onImagesSelect={(files) => setSelectedImages(prev => [...prev, ...files])}
-                        currentImages={[]}
-                        onImageRemove={(index) => {
-                          setSelectedImages(prev => prev.filter((_, i) => i !== index))
-                          if (mainImageIndex >= selectedImages.length - 1) {
-                            setMainImageIndex(0)
-                          }
-                        }}
-                        maxImages={5}
-                        mainImageIndex={mainImageIndex}
-                        onMainImageChange={setMainImageIndex}
-                        disabled={isLoading}
-                      />
-                    </Suspense>
-                  </div>
+                    <div>
+                      <Label>Product Images</Label>
+                      <Suspense fallback={<div className="h-32 bg-gray-200 rounded animate-pulse" />}>
+                        <MultiImageUpload
+                          onImagesSelect={(files) => setSelectedImages(prev => [...prev, ...files])}
+                          currentImages={[]}
+                          onImageRemove={(index) => {
+                            setSelectedImages(prev => prev.filter((_, i) => i !== index))
+                            if (mainImageIndex >= selectedImages.length - 1) {
+                              setMainImageIndex(0)
+                            }
+                          }}
+                          maxImages={5}
+                          mainImageIndex={mainImageIndex}
+                          onMainImageChange={setMainImageIndex}
+                          disabled={isLoading}
+                        />
+                      </Suspense>
+                    </div>
 
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      id="in_stock"
-                      checked={formData.in_stock}
-                      onChange={(e) => setFormData(prev => ({ ...prev, in_stock: e.target.checked }))}
-                    />
-                    <Label htmlFor="in_stock">In Stock</Label>
-                  </div>
-
-                  {/* Discount Management */}
-                  <div className="space-y-4">
                     <div className="flex items-center space-x-2">
                       <input
                         type="checkbox"
-                        id="discount_active"
-                        checked={formData.discount_active}
-                        onChange={(e) => setFormData(prev => ({ ...prev, discount_active: e.target.checked }))}
+                        id="in_stock"
+                        checked={formData.in_stock}
+                        onChange={(e) => setFormData(prev => ({ ...prev, in_stock: e.target.checked }))}
                       />
-                      <Label htmlFor="discount_active">Enable Discount</Label>
+                      <Label htmlFor="in_stock">In Stock</Label>
                     </div>
 
-                    {formData.discount_active && (
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <Label htmlFor="discount_percentage">Discount Percentage (%)</Label>
-                            <Input
-                              id="discount_percentage"
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              max="100"
-                              value={formData.discount_percentage}
-                              onChange={(e) => setFormData(prev => ({ 
-                                ...prev, 
-                                discount_percentage: e.target.value,
-                                discount_amount: '' // Clear amount when percentage is set
-                              }))}
-                              placeholder="0.00"
-                              disabled={!!formData.discount_amount}
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="discount_amount">Discount Amount (₦)</Label>
-                            <Input
-                              id="discount_amount"
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={formData.discount_amount}
-                              onChange={(e) => setFormData(prev => ({ 
-                                ...prev, 
-                                discount_amount: e.target.value,
-                                discount_percentage: '' // Clear percentage when amount is set
-                              }))}
-                              placeholder="0.00"
-                              disabled={!!formData.discount_percentage}
-                            />
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <Label htmlFor="discount_start_date">Start Date</Label>
-                            <Input
-                              id="discount_start_date"
-                              type="datetime-local"
-                              value={formData.discount_start_date}
-                              onChange={(e) => setFormData(prev => ({ ...prev, discount_start_date: e.target.value }))}
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="discount_end_date">End Date</Label>
-                            <Input
-                              id="discount_end_date"
-                              type="datetime-local"
-                              value={formData.discount_end_date}
-                              onChange={(e) => setFormData(prev => ({ ...prev, discount_end_date: e.target.value }))}
-                            />
-                          </div>
-                        </div>
-
-                        {(formData.discount_percentage || formData.discount_amount) && (
-                          <div className="bg-blue-50 p-3 rounded-lg">
-                            <p className="text-sm text-blue-700">
-                              <strong>Preview:</strong> 
-                              {formData.discount_percentage 
-                                ? ` ${formData.discount_percentage}% off` 
-                                : ` ₦${formData.discount_amount} off`}
-                              {formData.price && (
-                                <span>
-                                  {' '}(Final price: ₦
-                                  {formData.discount_percentage 
-                                    ? (parseFloat(formData.price) * (1 - parseFloat(formData.discount_percentage) / 100)).toFixed(2)
-                                    : (parseFloat(formData.price) - parseFloat(formData.discount_amount)).toFixed(2)
-                                  })
-                                </span>
-                              )}
-                            </p>
-                          </div>
-                        )}
+                    {/* Discount Management */}
+                    <div className="space-y-4">
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id="discount_active"
+                          checked={formData.discount_active}
+                          onChange={(e) => setFormData(prev => ({ ...prev, discount_active: e.target.checked }))}
+                        />
+                        <Label htmlFor="discount_active">Enable Discount</Label>
                       </div>
-                    )}
-                  </div>
-                </div>
 
-                <div className="flex justify-end space-x-2 mt-6">
-                  <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)} disabled={isLoading}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleCreateProduct} disabled={isLoading}>
-                    {isLoading ? (
-                      <>
-                        <Upload className="h-4 w-4 mr-2 animate-spin" />
-                        Creating...
-                      </>
-                    ) : (
-                      'Create Product'
-                    )}
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-          </div>
-
-          {/* Search Bar */}
-          <div className="mb-6">
-            <div className="relative w-full sm:max-w-md">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <Input
-                type="text"
-                placeholder="Search products or brands..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 pr-10 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-              />
-              {searchQuery && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 hover:bg-gray-100"
-                >
-                  <X className="w-3 h-3" />
-                </Button>
-              )}
-            </div>
-            {searchQuery && (
-              <p className="text-sm text-gray-600 mt-2">
-                {groupProductsByBrand().reduce((total, brand) => total + brand.products.length, 0)} product(s) found
-              </p>
-            )}
-          </div>
-
-          {/* Products List by Brand */}
-          <div className="space-y-8">
-            {groupProductsByBrand().length === 0 ? (
-              <div className="text-center py-12">
-                <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  {searchQuery ? 'No products found' : 'No products yet'}
-                </h3>
-                <p className="text-gray-500 mb-6">
-                  {searchQuery 
-                    ? `No products match "${searchQuery}". Try a different search term.`
-                    : 'Get started by adding your first product to the catalog.'
-                  }
-                </p>
-                {searchQuery && (
-                  <Button
-                    variant="outline"
-                    onClick={() => setSearchQuery('')}
-                    className="mr-4"
-                  >
-                    Clear Search
-                  </Button>
-                )}
-                <Button onClick={() => {
-                  resetForm()
-                  setIsCreateDialogOpen(true)
-                }}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Product
-                </Button>
-              </div>
-            ) : (
-              groupProductsByBrand().map((brandGroup) => (
-                <div key={brandGroup.brandId} className="space-y-4">
-                  <div className="flex items-center space-x-3 pb-2 border-b border-gray-200">
-                    <h2 className="text-xl font-semibold text-gray-800">{brandGroup.brandName}</h2>
-                    <Badge variant="secondary" className="text-xs">
-                      {brandGroup.products.length} product{brandGroup.products.length !== 1 ? 's' : ''}
-                    </Badge>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    {brandGroup.products.map((product) => (
-                      <motion.div
-                        key={product.id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 hover:shadow-md transition-shadow"
-                      >
-                        <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-3">
-                          <div className="flex items-center space-x-3 flex-1 min-w-0">
-                            <div className="w-10 h-12 sm:w-12 sm:h-16 bg-gray-100 rounded-md flex-shrink-0 overflow-hidden">
-                              {product.thumbnail_url ? (
-                                <img 
-                                  src={product.thumbnail_url} 
-                                  alt={product.name}
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center">
-                                  <ImageIcon className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
-                                </div>
-                              )}
+                      {formData.discount_active && (
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <Label htmlFor="discount_percentage">Discount Percentage (%)</Label>
+                              <Input
+                                id="discount_percentage"
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                max="100"
+                                value={formData.discount_percentage}
+                                onChange={(e) => setFormData(prev => ({
+                                  ...prev,
+                                  discount_percentage: e.target.value,
+                                  discount_amount: '' // Clear amount when percentage is set
+                                }))}
+                                placeholder="0.00"
+                                disabled={!!formData.discount_amount}
+                              />
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <h3 className="font-medium text-gray-900 truncate text-sm">{product.name}</h3>
-                              <div className="flex flex-wrap items-center gap-2 mt-1">
-                                {product.has_active_discount && product.discounted_price ? (
-                                  <>
-                                    <span className="font-semibold text-red-600 text-xs sm:text-sm">₦{product.discounted_price.toLocaleString()}</span>
-                                    <span className="text-xs text-gray-500 line-through">₦{product.price.toLocaleString()}</span>
-                                    <Badge variant="destructive" className="text-xs">
-                                      {product.discount_percentage 
-                                        ? `${product.discount_percentage}% OFF`
-                                        : `₦${product.discount_amount?.toLocaleString()} OFF`
-                                      }
-                                    </Badge>
-                                  </>
-                                ) : (
-                                  <span className="font-semibold text-blue-600 text-xs sm:text-sm">₦{product.price.toLocaleString()}</span>
-                                )}
-                                {product.sizes && product.sizes.length > 0 && (
-                                  <span className="text-xs text-gray-500">
-                                    {product.sizes.length} size{product.sizes.length > 1 ? 's' : ''}
+                            <div>
+                              <Label htmlFor="discount_amount">Discount Amount (₦)</Label>
+                              <Input
+                                id="discount_amount"
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={formData.discount_amount}
+                                onChange={(e) => setFormData(prev => ({
+                                  ...prev,
+                                  discount_amount: e.target.value,
+                                  discount_percentage: '' // Clear percentage when amount is set
+                                }))}
+                                placeholder="0.00"
+                                disabled={!!formData.discount_percentage}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <Label htmlFor="discount_start_date">Start Date</Label>
+                              <Input
+                                id="discount_start_date"
+                                type="datetime-local"
+                                value={formData.discount_start_date}
+                                onChange={(e) => setFormData(prev => ({ ...prev, discount_start_date: e.target.value }))}
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="discount_end_date">End Date</Label>
+                              <Input
+                                id="discount_end_date"
+                                type="datetime-local"
+                                value={formData.discount_end_date}
+                                onChange={(e) => setFormData(prev => ({ ...prev, discount_end_date: e.target.value }))}
+                              />
+                            </div>
+                          </div>
+
+                          {(formData.discount_percentage || formData.discount_amount) && (
+                            <div className="bg-blue-50 p-3 rounded-lg">
+                              <p className="text-sm text-blue-700">
+                                <strong>Preview:</strong>
+                                {formData.discount_percentage
+                                  ? ` ${formData.discount_percentage}% off`
+                                  : ` ₦${formData.discount_amount} off`}
+                                {formData.price && (
+                                  <span>
+                                    {' '}(Final price: ₦
+                                    {formData.discount_percentage
+                                      ? (parseFloat(formData.price) * (1 - parseFloat(formData.discount_percentage) / 100)).toFixed(2)
+                                      : (parseFloat(formData.price) - parseFloat(formData.discount_amount)).toFixed(2)
+                                    })
                                   </span>
                                 )}
-                              </div>
-                              <div className="flex items-center space-x-2 mt-1">
-                                <div className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium ${getStockStatus(product).bgColor} ${getStockStatus(product).color}`}>
-                                  <BarChart3 className="w-3 h-3" />
-                                  <span>{calculateTotalStock(product)} in stock</span>
-                                </div>
-                                {isCriticalStock(product) && (
-                                  <div className="flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
-                                    <AlertTriangle className="w-3 h-3" />
-                                    <span>Critical Stock</span>
-                                  </div>
-                                )}
-                                {isLowStock(product) && (
-                                  <div className="flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
-                                    <AlertTriangle className="w-3 h-3" />
-                                    <span>Low Stock</span>
-                                  </div>
-                                )}
-                                {isOutOfStock(product) && (
-                                  <div className="flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
-                                    <TrendingDown className="w-3 h-3" />
-                                    <span>Out of Stock</span>
-                                  </div>
-                                )}
-                              </div>
+                              </p>
                             </div>
-                            <div className="flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
-                              <Button
-                                 variant="ghost"
-                                 size="sm"
-                                 onClick={() => toggleFeatured(product.id, product.featured)}
-                                 className={`h-7 w-7 sm:h-8 sm:w-8 p-0 ${product.featured ? 'text-yellow-500 hover:text-yellow-600' : 'text-gray-400 hover:text-yellow-500'}`}
-                                 title={product.featured ? "Remove from featured" : "Mark as featured"}
-                               >
-                                 <Star className={`w-3 h-3 sm:w-4 sm:h-4 ${product.featured ? 'fill-current' : ''}`} />
-                               </Button>
-                              <Button
-                                 variant="ghost"
-                                 size="sm"
-                                 onClick={() => openInventoryDialog(product)}
-                                 className="h-7 w-7 sm:h-8 sm:w-8 p-0"
-                                 title="Adjust Inventory"
-                               >
-                                 <Settings className="w-3 h-3 sm:w-4 sm:h-4" />
-                               </Button>
-                              <Button
-                                 variant="ghost"
-                                 size="sm"
-                                 onClick={() => openEditDialog(product)}
-                                 className="h-7 w-7 sm:h-8 sm:w-8 p-0"
-                               >
-                                 <Edit className="w-3 h-3 sm:w-4 sm:h-4" />
-                               </Button>
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <Button variant="ghost" size="sm" className="h-7 w-7 sm:h-8 sm:w-8 p-0">
-                                    <Trash2 className="w-3 h-3 sm:w-4 sm:h-4 text-red-500" />
-                                  </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>Delete Product</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                      Are you sure you want to delete "{product.name}"? This action cannot be undone.
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction
-                                      onClick={() => handleDeleteProduct(product.id)}
-                                      className="bg-red-600 hover:bg-red-700"
-                                    >
-                                      Delete
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end space-x-2 mt-6">
+                    <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)} disabled={isLoading}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleCreateProduct} disabled={isLoading}>
+                      {isLoading ? (
+                        <>
+                          <Upload className="h-4 w-4 mr-2 animate-spin" />
+                          Creating...
+                        </>
+                      ) : (
+                        'Create Product'
+                      )}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+
+            {/* Search Bar */}
+            <div className="mb-6">
+              <div className="relative w-full sm:max-w-md">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <Input
+                  type="text"
+                  placeholder="Search products or brands..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 pr-10 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                />
+                {searchQuery && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 hover:bg-gray-100"
+                  >
+                    <X className="w-3 h-3" />
+                  </Button>
+                )}
+              </div>
+              {searchQuery && (
+                <p className="text-sm text-gray-600 mt-2">
+                  {groupProductsByBrand().reduce((total, brand) => total + brand.products.length, 0)} product(s) found
+                </p>
+              )}
+            </div>
+
+            {/* Products List by Brand */}
+            <div className="space-y-8">
+              {groupProductsByBrand().length === 0 ? (
+                <div className="text-center py-12">
+                  <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    {searchQuery ? 'No products found' : 'No products yet'}
+                  </h3>
+                  <p className="text-gray-500 mb-6">
+                    {searchQuery
+                      ? `No products match "${searchQuery}". Try a different search term.`
+                      : 'Get started by adding your first product to the catalog.'
+                    }
+                  </p>
+                  {searchQuery && (
+                    <Button
+                      variant="outline"
+                      onClick={() => setSearchQuery('')}
+                      className="mr-4"
+                    >
+                      Clear Search
+                    </Button>
+                  )}
+                  <Button onClick={() => {
+                    resetForm()
+                    setIsCreateDialogOpen(true)
+                  }}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Product
+                  </Button>
+                </div>
+              ) : (
+                groupProductsByBrand().map((brandGroup) => (
+                  <div key={brandGroup.brandId} className="space-y-4">
+                    <div className="flex items-center space-x-3 pb-2 border-b border-gray-200">
+                      <h2 className="text-xl font-semibold text-gray-800">{brandGroup.brandName}</h2>
+                      <Badge variant="secondary" className="text-xs">
+                        {brandGroup.products.length} product{brandGroup.products.length !== 1 ? 's' : ''}
+                      </Badge>
+                    </div>
+
+                    <div className="space-y-3">
+                      {brandGroup.products.map((product) => (
+                        <motion.div
+                          key={product.id}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 hover:shadow-md transition-shadow"
+                        >
+                          <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-3">
+                            <div className="flex items-center space-x-3 flex-1 min-w-0">
+                              <div className="w-10 h-12 sm:w-12 sm:h-16 bg-gray-100 rounded-md flex-shrink-0 overflow-hidden">
+                                {product.thumbnail_url ? (
+                                  <img
+                                    src={product.thumbnail_url}
+                                    alt={product.name}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center">
+                                    <ImageIcon className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <h3 className="font-medium text-gray-900 truncate text-sm">{product.name}</h3>
+                                <div className="flex flex-wrap items-center gap-2 mt-1">
+                                  {product.has_active_discount && product.discounted_price ? (
+                                    <>
+                                      <span className="font-semibold text-red-600 text-xs sm:text-sm">₦{product.discounted_price.toLocaleString()}</span>
+                                      <span className="text-xs text-gray-500 line-through">₦{product.price.toLocaleString()}</span>
+                                      <Badge variant="destructive" className="text-xs">
+                                        {product.discount_percentage
+                                          ? `${product.discount_percentage}% OFF`
+                                          : `₦${product.discount_amount?.toLocaleString()} OFF`
+                                        }
+                                      </Badge>
+                                    </>
+                                  ) : (
+                                    <span className="font-semibold text-blue-600 text-xs sm:text-sm">₦{product.price.toLocaleString()}</span>
+                                  )}
+                                  {product.sizes && product.sizes.length > 0 && (
+                                    <span className="text-xs text-gray-500">
+                                      {product.sizes.length} size{product.sizes.length > 1 ? 's' : ''}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center space-x-2 mt-1">
+                                  <div className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium ${getStockStatus(product).bgColor} ${getStockStatus(product).color}`}>
+                                    <BarChart3 className="w-3 h-3" />
+                                    <span>{calculateTotalStock(product)} in stock</span>
+                                  </div>
+                                  {isCriticalStock(product) && (
+                                    <div className="flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                                      <AlertTriangle className="w-3 h-3" />
+                                      <span>Critical Stock</span>
+                                    </div>
+                                  )}
+                                  {isLowStock(product) && (
+                                    <div className="flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
+                                      <AlertTriangle className="w-3 h-3" />
+                                      <span>Low Stock</span>
+                                    </div>
+                                  )}
+                                  {isOutOfStock(product) && (
+                                    <div className="flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                                      <TrendingDown className="w-3 h-3" />
+                                      <span>Out of Stock</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => toggleFeatured(product.id, product.featured)}
+                                  className={`h-7 w-7 sm:h-8 sm:w-8 p-0 ${product.featured ? 'text-yellow-500 hover:text-yellow-600' : 'text-gray-400 hover:text-yellow-500'}`}
+                                  title={product.featured ? "Remove from featured" : "Mark as featured"}
+                                >
+                                  <Star className={`w-3 h-3 sm:w-4 sm:h-4 ${product.featured ? 'fill-current' : ''}`} />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => openInventoryDialog(product)}
+                                  className="h-7 w-7 sm:h-8 sm:w-8 p-0"
+                                  title="Adjust Inventory"
+                                >
+                                  <Settings className="w-3 h-3 sm:w-4 sm:h-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => openEditDialog(product)}
+                                  className="h-7 w-7 sm:h-8 sm:w-8 p-0"
+                                >
+                                  <Edit className="w-3 h-3 sm:w-4 sm:h-4" />
+                                </Button>
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button variant="ghost" size="sm" className="h-7 w-7 sm:h-8 sm:w-8 p-0">
+                                      <Trash2 className="w-3 h-3 sm:w-4 sm:h-4 text-red-500" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Delete Product</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Are you sure you want to delete "{product.name}"? This action cannot be undone.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction
+                                        onClick={() => handleDeleteProduct(product.id)}
+                                        className="bg-red-600 hover:bg-red-700"
+                                      >
+                                        Delete
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </motion.div>
-                    ))}
+                        </motion.div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))
-            )}
+                ))
+              )}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Edit Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit Product</DialogTitle>
-            <DialogDescription>
-              Update product information
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+        {/* Edit Dialog */}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Edit Product</DialogTitle>
+              <DialogDescription>
+                Update product information
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-name">Product Name</Label>
+                  <Input
+                    id="edit-name"
+                    value={formData.name}
+                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="Enter product name"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-price">Price (₦)</Label>
+                  <Input
+                    id="edit-price"
+                    type="number"
+                    step="0.01"
+                    value={formData.price}
+                    onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+
               <div>
-                <Label htmlFor="edit-name">Product Name</Label>
-                <Input
-                  id="edit-name"
-                  value={formData.name}
-                  onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="Enter product name"
+                <Label htmlFor="edit-description">Description</Label>
+                <Textarea
+                  id="edit-description"
+                  value={formData.description}
+                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Enter product description"
+                  rows={3}
                 />
               </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-brand">Brand</Label>
+                  <Select value={formData.brand_id} onValueChange={(value: string) => setFormData(prev => ({ ...prev, brand_id: value }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a brand" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {brands.map((brand) => (
+                        <SelectItem key={brand.id} value={brand.id}>
+                          {brand.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
               <div>
-                <Label htmlFor="edit-price">Price (₦)</Label>
-                <Input
-                  id="edit-price"
-                  type="number"
-                  step="0.01"
-                  value={formData.price}
-                  onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
-                  placeholder="0.00"
-                />
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="edit-description">Description</Label>
-              <Textarea
-                id="edit-description"
-                value={formData.description}
-                onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="Enter product description"
-                rows={3}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="edit-brand">Brand</Label>
-                <Select value={formData.brand_id} onValueChange={(value: string) => setFormData(prev => ({ ...prev, brand_id: value }))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a brand" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {brands.map((brand) => (
-                      <SelectItem key={brand.id} value={brand.id}>
-                        {brand.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <Label>Sizes & Stock</Label>
-                <Button type="button" variant="outline" size="sm" onClick={addSize}>
-                  <Plus className="h-4 w-4 mr-1" />
-                  Add Size
-                </Button>
-              </div>
-              <div className="space-y-2">
-                {isMiniMeBrand && (
-                  <p className="text-sm text-blue-600 mb-2">
-                    💡 MiniMe products support different prices per size. Leave price empty to use base product price.
-                  </p>
-                )}
-                {formData.sizes.map((size, index) => (
-                  <div key={`edit-size-${index}-${size.size}`} className="flex items-center gap-2">
-                    <Input
-                      placeholder="Size (e.g., S, M, L, XL)"
-                      value={size.size}
-                      onChange={(e) => updateSize(index, 'size', e.target.value)}
-                      className="flex-1"
-                    />
-                    <Input
-                      type="number"
-                      placeholder="Stock"
-                      value={size.stock}
-                      onChange={(e) => updateSize(index, 'stock', parseInt(e.target.value) || 0)}
-                      className="w-24"
-                      min="0"
-                    />
-                    {isMiniMeBrand && (
+                <div className="flex items-center justify-between mb-2">
+                  <Label>Sizes & Stock</Label>
+                  <Button type="button" variant="outline" size="sm" onClick={addSize}>
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add Size
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  {isMiniMeBrand && (
+                    <p className="text-sm text-blue-600 mb-2">
+                      💡 MiniMe products support different prices per size. Leave price empty to use base product price.
+                    </p>
+                  )}
+                  {formData.sizes.map((size, index) => (
+                    <div key={`edit-size-${index}-${size.size}`} className="flex items-center gap-2">
+                      <Input
+                        placeholder="Size (e.g., S, M, L, XL)"
+                        value={size.size}
+                        onChange={(e) => updateSize(index, 'size', e.target.value)}
+                        className="flex-1"
+                      />
                       <Input
                         type="number"
-                        placeholder="Price (optional)"
-                        value={(size as ProductSize).price || ''}
-                        onChange={(e) => updateSize(index, 'price', parseFloat(e.target.value) || undefined)}
-                        className="w-32"
+                        placeholder="Stock"
+                        value={size.stock}
+                        onChange={(e) => updateSize(index, 'stock', parseInt(e.target.value) || 0)}
+                        className="w-24"
                         min="0"
-                        step="0.01"
                       />
-                    )}
-                    {formData.sizes.length > 1 && (
+                      {isMiniMeBrand && (
+                        <Input
+                          type="number"
+                          placeholder="Price (optional)"
+                          value={(size as ProductSize).price || ''}
+                          onChange={(e) => updateSize(index, 'price', parseFloat(e.target.value) || undefined)}
+                          className="w-32"
+                          min="0"
+                          step="0.01"
+                        />
+                      )}
+                      {formData.sizes.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => removeSize(index)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <Label>Product Images</Label>
+                <Suspense fallback={<div className="h-32 bg-gray-200 rounded animate-pulse" />}>
+                  <MultiImageUpload
+                    onImagesSelect={(files) => setSelectedImages(prev => [...prev, ...files])}
+                    currentImages={formData.additional_images.filter(img => img.trim() !== '')}
+                    onImageRemove={(index) => {
+                      const newImages = [...formData.additional_images]
+                      newImages.splice(index, 1)
+                      setFormData(prev => ({ ...prev, additional_images: newImages }))
+                    }}
+                    maxImages={5}
+                    mainImageIndex={mainImageIndex}
+                    onMainImageChange={setMainImageIndex}
+                    disabled={isUploading}
+                  />
+                </Suspense>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Upload up to 5 images. The first image will be used as the thumbnail.
+                </p>
+              </div>
+
+              <div>
+                <Label htmlFor="edit-thumbnail">Thumbnail URL (Optional)</Label>
+                <Input
+                  id="edit-thumbnail"
+                  value={formData.thumbnail_url}
+                  onChange={(e) => setFormData(prev => ({ ...prev, thumbnail_url: e.target.value }))}
+                  placeholder="Leave empty to use first uploaded image"
+                />
+                <p className="text-sm text-muted-foreground mt-1">
+                  Override the thumbnail with a custom URL if needed
+                </p>
+              </div>
+
+              <div>
+                <Label>Additional Image URLs</Label>
+                {formData.additional_images.map((image, index) => (
+                  <div key={`image-${index}-${image.substring(0, 20)}`} className="flex gap-2 mt-2">
+                    <Input
+                      value={image}
+                      onChange={(e) => updateImageField(index, e.target.value)}
+                      placeholder="https://example.com/image.jpg"
+                    />
+                    {formData.additional_images.length > 1 && (
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => removeSize(index)}
+                        onClick={() => removeImageField(index)}
                       >
-                        <X className="h-4 w-4" />
+                        <X className="w-4 h-4" />
                       </Button>
                     )}
                   </div>
                 ))}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addImageField}
+                  className="mt-2"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Image URL
+                </Button>
+                <p className="text-sm text-muted-foreground mt-2">
+                  You can also add images via URLs in addition to uploads
+                </p>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="edit-in_stock"
+                  checked={formData.in_stock}
+                  onChange={(e) => setFormData(prev => ({ ...prev, in_stock: e.target.checked }))}
+                />
+                <Label htmlFor="edit-in_stock">In Stock</Label>
+              </div>
+
+              {/* Discount Management Section */}
+              <div className="border-t pt-4">
+                <div className="flex items-center justify-between mb-4">
+                  <Label className="text-lg font-semibold">Discount Settings</Label>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="edit-discount_active"
+                      checked={formData.discount_active}
+                      onChange={(e) => setFormData(prev => ({ ...prev, discount_active: e.target.checked }))}
+                    />
+                    <Label htmlFor="edit-discount_active">Enable Discount</Label>
+                  </div>
+                </div>
+
+                {formData.discount_active && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="edit-discount_percentage">Discount Percentage (%)</Label>
+                        <Input
+                          id="edit-discount_percentage"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          max="100"
+                          value={formData.discount_percentage}
+                          onChange={(e) => setFormData(prev => ({
+                            ...prev,
+                            discount_percentage: e.target.value,
+                            discount_amount: '' // Clear amount when percentage is set
+                          }))}
+                          placeholder="0.00"
+                          disabled={!!formData.discount_amount}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-discount_amount">Discount Amount (₦)</Label>
+                        <Input
+                          id="edit-discount_amount"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={formData.discount_amount}
+                          onChange={(e) => setFormData(prev => ({
+                            ...prev,
+                            discount_amount: e.target.value,
+                            discount_percentage: '' // Clear percentage when amount is set
+                          }))}
+                          placeholder="0.00"
+                          disabled={!!formData.discount_percentage}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="edit-discount_start_date">Start Date</Label>
+                        <Input
+                          id="edit-discount_start_date"
+                          type="datetime-local"
+                          value={formData.discount_start_date}
+                          onChange={(e) => setFormData(prev => ({ ...prev, discount_start_date: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-discount_end_date">End Date</Label>
+                        <Input
+                          id="edit-discount_end_date"
+                          type="datetime-local"
+                          value={formData.discount_end_date}
+                          onChange={(e) => setFormData(prev => ({ ...prev, discount_end_date: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+
+                    {(formData.discount_percentage || formData.discount_amount) && (
+                      <div className="bg-blue-50 p-3 rounded-lg">
+                        <p className="text-sm text-blue-700">
+                          <strong>Preview:</strong>
+                          {formData.discount_percentage
+                            ? ` ${formData.discount_percentage}% off`
+                            : ` ₦${formData.discount_amount} off`}
+                          {formData.price && (
+                            <span>
+                              {' '}(Final price: ₦
+                              {formData.discount_percentage
+                                ? (parseFloat(formData.price) * (1 - parseFloat(formData.discount_percentage) / 100)).toFixed(2)
+                                : (parseFloat(formData.price) - parseFloat(formData.discount_amount)).toFixed(2)
+                              })
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
-            <div>
-              <Label>Product Images</Label>
-              <Suspense fallback={<div className="h-32 bg-gray-200 rounded animate-pulse" />}>
-                <MultiImageUpload
-                  onImagesSelect={(files) => setSelectedImages(prev => [...prev, ...files])}
-                  currentImages={formData.additional_images.filter(img => img.trim() !== '')}
-                  onImageRemove={(index) => {
-                    const newImages = [...formData.additional_images]
-                    newImages.splice(index, 1)
-                    setFormData(prev => ({ ...prev, additional_images: newImages }))
-                  }}
-                  maxImages={5}
-                  mainImageIndex={mainImageIndex}
-                  onMainImageChange={setMainImageIndex}
-                  disabled={isUploading}
-                />
-              </Suspense>
-              <p className="text-sm text-muted-foreground mt-2">
-                Upload up to 5 images. The first image will be used as the thumbnail.
-              </p>
+            <div className="flex justify-end space-x-2 mt-6">
+              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={isUploading}>
+                Cancel
+              </Button>
+              <Button onClick={handleEditProduct} disabled={isUploading}>
+                {isUploading ? (
+                  <>
+                    <Upload className="h-4 w-4 mr-2 animate-spin" />
+                    Uploading...
+                  </>
+                ) : (
+                  'Update Product'
+                )}
+              </Button>
             </div>
+          </DialogContent>
+        </Dialog>
 
-            <div>
-              <Label htmlFor="edit-thumbnail">Thumbnail URL (Optional)</Label>
-              <Input
-                id="edit-thumbnail"
-                value={formData.thumbnail_url}
-                onChange={(e) => setFormData(prev => ({ ...prev, thumbnail_url: e.target.value }))}
-                placeholder="Leave empty to use first uploaded image"
-              />
-              <p className="text-sm text-muted-foreground mt-1">
-                Override the thumbnail with a custom URL if needed
-              </p>
-            </div>
+        {/* Inventory Adjustment Dialog */}
+        <Dialog open={isInventoryDialogOpen} onOpenChange={setIsInventoryDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Adjust Inventory</DialogTitle>
+              <DialogDescription>
+                Update stock levels for {inventoryProduct?.name}
+              </DialogDescription>
+            </DialogHeader>
 
-            <div>
-              <Label>Additional Image URLs</Label>
-              {formData.additional_images.map((image, index) => (
-                <div key={`image-${index}-${image.substring(0, 20)}`} className="flex gap-2 mt-2">
-                  <Input
-                    value={image}
-                    onChange={(e) => updateImageField(index, e.target.value)}
-                    placeholder="https://example.com/image.jpg"
-                  />
-                  {formData.additional_images.length > 1 && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => removeImageField(index)}
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
-                  )}
+            {inventoryProduct && (
+              <div className="space-y-4">
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium">Current Total Stock:</span>
+                    <span className={`text-sm font-semibold ${getStockStatus(inventoryProduct).color}`}>
+                      {calculateTotalStock(inventoryProduct)} units
+                    </span>
+                  </div>
+                  <div className={`text-xs px-2 py-1 rounded-full inline-block ${getStockStatus(inventoryProduct).bgColor} ${getStockStatus(inventoryProduct).color}`}>
+                    {getStockStatus(inventoryProduct).label}
+                  </div>
                 </div>
-              ))}
+
+                <div className="space-y-3">
+                  <Label>Stock by Size</Label>
+                  {inventoryProduct.sizes?.map((size, index) => (
+                    <div key={index} className="flex items-center space-x-3 p-3 border rounded-lg">
+                      <div className="flex-1">
+                        <span className="font-medium text-sm">{size.size}</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleStockAdjustment(inventoryProduct.id, index, -1)}
+                          disabled={size.stock <= 0}
+                          className="h-8 w-8 p-0"
+                        >
+                          -
+                        </Button>
+                        <span className="w-12 text-center text-sm font-medium">{size.stock}</span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleStockAdjustment(inventoryProduct.id, index, 1)}
+                          className="h-8 w-8 p-0"
+                        >
+                          +
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end space-x-2 pt-4">
+              <Button variant="outline" onClick={() => setIsInventoryDialogOpen(false)}>
+                Close
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+
+        {/* Pagination Controls */}
+        {!loading && (
+          <div className="mt-6 flex items-center justify-between border-t border-gray-200 pt-4 px-4 sm:px-6 lg:px-8">
+            <div className="text-sm text-gray-500">
+              Showing {((page - 1) * ITEMS_PER_PAGE) + 1} to {Math.min(page * ITEMS_PER_PAGE, totalProducts)} of {totalProducts} products
+            </div>
+            <div className="flex items-center gap-2">
               <Button
-                type="button"
                 variant="outline"
                 size="sm"
-                onClick={addImageField}
-                className="mt-2"
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="border-blue-200 hover:bg-blue-50"
               >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Image URL
+                Previous
               </Button>
-              <p className="text-sm text-muted-foreground mt-2">
-                You can also add images via URLs in addition to uploads
-              </p>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="edit-in_stock"
-                checked={formData.in_stock}
-                onChange={(e) => setFormData(prev => ({ ...prev, in_stock: e.target.checked }))}
-              />
-              <Label htmlFor="edit-in_stock">In Stock</Label>
-            </div>
-
-            {/* Discount Management Section */}
-            <div className="border-t pt-4">
-              <div className="flex items-center justify-between mb-4">
-                <Label className="text-lg font-semibold">Discount Settings</Label>
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id="edit-discount_active"
-                    checked={formData.discount_active}
-                    onChange={(e) => setFormData(prev => ({ ...prev, discount_active: e.target.checked }))}
-                  />
-                  <Label htmlFor="edit-discount_active">Enable Discount</Label>
-                </div>
+              <div className="text-sm font-medium text-gray-900">
+                Page {page} of {totalPages}
               </div>
-
-              {formData.discount_active && (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="edit-discount_percentage">Discount Percentage (%)</Label>
-                      <Input
-                        id="edit-discount_percentage"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        max="100"
-                        value={formData.discount_percentage}
-                        onChange={(e) => setFormData(prev => ({ 
-                          ...prev, 
-                          discount_percentage: e.target.value,
-                          discount_amount: '' // Clear amount when percentage is set
-                        }))}
-                        placeholder="0.00"
-                        disabled={!!formData.discount_amount}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-discount_amount">Discount Amount (₦)</Label>
-                      <Input
-                        id="edit-discount_amount"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={formData.discount_amount}
-                        onChange={(e) => setFormData(prev => ({ 
-                          ...prev, 
-                          discount_amount: e.target.value,
-                          discount_percentage: '' // Clear percentage when amount is set
-                        }))}
-                        placeholder="0.00"
-                        disabled={!!formData.discount_percentage}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="edit-discount_start_date">Start Date</Label>
-                      <Input
-                        id="edit-discount_start_date"
-                        type="datetime-local"
-                        value={formData.discount_start_date}
-                        onChange={(e) => setFormData(prev => ({ ...prev, discount_start_date: e.target.value }))}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-discount_end_date">End Date</Label>
-                      <Input
-                        id="edit-discount_end_date"
-                        type="datetime-local"
-                        value={formData.discount_end_date}
-                        onChange={(e) => setFormData(prev => ({ ...prev, discount_end_date: e.target.value }))}
-                      />
-                    </div>
-                  </div>
-
-                  {(formData.discount_percentage || formData.discount_amount) && (
-                    <div className="bg-blue-50 p-3 rounded-lg">
-                      <p className="text-sm text-blue-700">
-                        <strong>Preview:</strong> 
-                        {formData.discount_percentage 
-                          ? ` ${formData.discount_percentage}% off` 
-                          : ` ₦${formData.discount_amount} off`}
-                        {formData.price && (
-                          <span>
-                            {' '}(Final price: ₦
-                            {formData.discount_percentage 
-                              ? (parseFloat(formData.price) * (1 - parseFloat(formData.discount_percentage) / 100)).toFixed(2)
-                              : (parseFloat(formData.price) - parseFloat(formData.discount_amount)).toFixed(2)
-                            })
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="border-blue-200 hover:bg-blue-50"
+              >
+                Next
+              </Button>
             </div>
           </div>
+        )}
 
-          <div className="flex justify-end space-x-2 mt-6">
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={isUploading}>
-              Cancel
-            </Button>
-            <Button onClick={handleEditProduct} disabled={isUploading}>
-              {isUploading ? (
-                <>
-                  <Upload className="h-4 w-4 mr-2 animate-spin" />
-                  Uploading...
-                </>
-              ) : (
-                'Update Product'
-              )}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Inventory Adjustment Dialog */}
-      <Dialog open={isInventoryDialogOpen} onOpenChange={setIsInventoryDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Adjust Inventory</DialogTitle>
-            <DialogDescription>
-              Update stock levels for {inventoryProduct?.name}
-            </DialogDescription>
-          </DialogHeader>
-          
-          {inventoryProduct && (
-            <div className="space-y-4">
-              <div className="bg-gray-50 p-3 rounded-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium">Current Total Stock:</span>
-                  <span className={`text-sm font-semibold ${getStockStatus(inventoryProduct).color}`}>
-                    {calculateTotalStock(inventoryProduct)} units
-                  </span>
-                </div>
-                <div className={`text-xs px-2 py-1 rounded-full inline-block ${getStockStatus(inventoryProduct).bgColor} ${getStockStatus(inventoryProduct).color}`}>
-                  {getStockStatus(inventoryProduct).label}
-                </div>
-              </div>
-              
-              <div className="space-y-3">
-                <Label>Stock by Size</Label>
-                {inventoryProduct.sizes?.map((size, index) => (
-                  <div key={index} className="flex items-center space-x-3 p-3 border rounded-lg">
-                    <div className="flex-1">
-                      <span className="font-medium text-sm">{size.size}</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleStockAdjustment(inventoryProduct.id, index, -1)}
-                        disabled={size.stock <= 0}
-                        className="h-8 w-8 p-0"
-                      >
-                        -
-                      </Button>
-                      <span className="w-12 text-center text-sm font-medium">{size.stock}</span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleStockAdjustment(inventoryProduct.id, index, 1)}
-                        className="h-8 w-8 p-0"
-                      >
-                        +
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          
-          <div className="flex justify-end space-x-2 pt-4">
-            <Button variant="outline" onClick={() => setIsInventoryDialogOpen(false)}>
-              Close
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Toaster />
+        <Toaster />
       </div>
     </Suspense>
   )

@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/utils/supabase/client'
+
+const supabase = createClient()
 
 interface CacheEntry<T> {
   data: T
@@ -24,12 +26,12 @@ class SupabaseCache {
   get<T>(key: string): T | null {
     const entry = this.cache.get(key)
     if (!entry) return null
-    
+
     if (Date.now() > entry.expiry) {
       this.cache.delete(key)
       return null
     }
-    
+
     return entry.data
   }
 
@@ -78,14 +80,14 @@ export function useSupabaseCache<T>(
     retryDelay?: number
   } = {}
 ) {
-  const { 
-    ttl = 5 * 60 * 1000, 
-    enabled = true, 
+  const {
+    ttl = 5 * 60 * 1000,
+    enabled = true,
     refetchOnMount = false,
     retryAttempts = 3,
     retryDelay = 1000
   } = options
-  
+
   const [data, setData] = useState<T | null>(null)
   const [loading, setLoading] = useState(!enabled) // Start as not loading if disabled
   const [error, setError] = useState<Error | null>(null)
@@ -119,16 +121,16 @@ export function useSupabaseCache<T>(
       for (let attempt = 0; attempt <= retryAttempts; attempt++) {
         try {
           const result = await queryFn()
-          
+
           // Cache the result
           cache.set(key, result, ttl)
           setData(result)
           setRetryCount(0) // Reset retry count on success
-          
+
           return result
         } catch (err) {
           lastError = err instanceof Error ? err : new Error('Unknown error')
-          
+
           if (attempt < retryAttempts) {
             // Wait before retrying
             await new Promise(resolve => setTimeout(resolve, retryDelay * (attempt + 1)))
@@ -136,7 +138,7 @@ export function useSupabaseCache<T>(
           }
         }
       }
-      
+
       // If we get here, all retries failed
       throw lastError
     } catch (err) {
@@ -191,7 +193,7 @@ export function useBrands() {
       if (error) throw error
       return data || []
     },
-    { 
+    {
       ttl: 10 * 60 * 1000, // 10 minutes for brands
       retryAttempts: 3,
       retryDelay: 1000
@@ -201,14 +203,14 @@ export function useBrands() {
 
 export function useFeaturedProducts(brandId: string) {
   return useSupabaseCache(
-    `featured-products-${brandId}`,
+    `featured-products-${brandId}-v3`,
     async () => {
       console.log(`[useFeaturedProducts] Fetching products for brandId: ${brandId}`)
-      
+
       // First, try to get featured products (including out of stock)
       let { data, error } = await supabase
         .from('products_with_discounts')
-        .select('*')
+        .select('*, sizes')
         .eq('brand_id', brandId)
         .eq('featured', true)
         .limit(3)
@@ -218,33 +220,33 @@ export function useFeaturedProducts(brandId: string) {
         console.error(`[useFeaturedProducts] Error fetching featured products for brandId ${brandId}:`, error)
         throw error
       }
-      
+
       console.log(`[useFeaturedProducts] Found ${data?.length || 0} featured products for brandId ${brandId}`)
-      
+
       // If no featured products, fall back to showing any products (including out of stock)
       if (!data || data.length === 0) {
         console.log(`[useFeaturedProducts] No featured products found, fetching any products for brandId ${brandId}`)
-        
+
         const fallbackResult = await supabase
           .from('products_with_discounts')
-          .select('*')
+          .select('*, sizes')
           .eq('brand_id', brandId)
           .limit(3)
           .order('created_at', { ascending: false })
-        
+
         if (fallbackResult.error) {
           console.error(`[useFeaturedProducts] Error fetching fallback products for brandId ${brandId}:`, fallbackResult.error)
           throw fallbackResult.error
         }
-        
+
         data = fallbackResult.data || []
         console.log(`[useFeaturedProducts] Found ${data.length} fallback products for brandId ${brandId}`)
       }
-      
+
       console.log(`[useFeaturedProducts] Returning ${data?.length || 0} products for brandId ${brandId}`, data)
       return data || []
     },
-    { 
+    {
       ttl: 3 * 60 * 1000, // 3 minutes for products
       enabled: !!brandId,
       refetchOnMount: false // Don't force refetch on mount, but will refetch when key changes
@@ -254,7 +256,7 @@ export function useFeaturedProducts(brandId: string) {
 
 export function useBrandProducts(brandSlug: string) {
   return useSupabaseCache(
-    `brand-products-${brandSlug}`,
+    `brand-products-${brandSlug}-v2`,
     async () => {
       const { data: brand, error: brandError } = await supabase
         .from('brands')
@@ -266,14 +268,14 @@ export function useBrandProducts(brandSlug: string) {
 
       const { data: products, error: productsError } = await supabase
         .from('products_with_discounts')
-        .select('*')
+        .select('*, sizes')
         .eq('brand_id', brand.id)
         .order('created_at', { ascending: false })
 
       if (productsError) throw productsError
       return products || []
     },
-    { 
+    {
       ttl: 3 * 60 * 1000, // 3 minutes for products
       enabled: !!brandSlug,
       refetchOnMount: true // Always refetch to ensure fresh data

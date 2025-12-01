@@ -29,8 +29,8 @@ interface AdminSidebarProps {
   onMobileClose?: () => void
 }
 
-export default function AdminSidebar({ 
-  activeSection = "dashboard", 
+export default function AdminSidebar({
+  activeSection = "dashboard",
   onSectionChange,
   newOrdersCount = 3,
   isCollapsed = false,
@@ -39,7 +39,7 @@ export default function AdminSidebar({
   onMobileClose
 }: AdminSidebarProps) {
   const [internalCollapsed, setInternalCollapsed] = useState(false)
-  
+
   // Use external state if provided, otherwise use internal state
   const collapsed = setIsCollapsed ? isCollapsed : internalCollapsed
   const toggleCollapsed = setIsCollapsed || setInternalCollapsed
@@ -95,6 +95,13 @@ export default function AdminSidebar({
       icon: Settings,
       description: "Webhooks, emails & configuration",
       route: "/admin/settings"
+    },
+    {
+      id: "discounts",
+      label: "Discounts",
+      icon: Tag,
+      description: "Manage bulk product discounts",
+      route: "/admin/discounts"
     }
   ]
 
@@ -123,23 +130,10 @@ export default function AdminSidebar({
         {/* Header */}
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center justify-between">
-            {(!collapsed || isMobile) && (
-              <div className="flex items-center space-x-3">
-                {/* Logo placeholder - replace with your actual logo */}
-                <div className="w-8 h-8 bg-[#FFDC00] rounded flex items-center justify-center flex-shrink-0">
-                  <span className="text-black font-bold text-sm">FT</span>
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-black">Admin Panel</h2>
-                  <p className="text-sm text-gray-600">Manage your store</p>
-                </div>
-              </div>
-            )}
-            {collapsed && !isMobile && (
-              <div className="w-8 h-8 bg-[#FFDC00] rounded flex items-center justify-center">
-                <span className="text-black font-bold text-sm">FT</span>
-              </div>
-            )}
+            {/* Logo */}
+            <div className="w-8 h-8 bg-[#FFDC00] rounded flex items-center justify-center">
+              <span className="text-black font-bold text-sm">FT</span>
+            </div>
             {!isMobile && (
               <Button
                 variant="ghost"
@@ -162,7 +156,7 @@ export default function AdminSidebar({
           {navigationItems.map((item) => {
             const Icon = item.icon
             const isActive = activeSection === item.id
-            
+
             return (
               <motion.div
                 key={item.id}
@@ -171,18 +165,17 @@ export default function AdminSidebar({
               >
                 <Button
                   variant={isActive ? "default" : "ghost"}
-                  className={`w-full justify-start h-auto p-3 ${
-                    isActive 
-                      ? "bg-[#FFDC00] hover:bg-[#FFDC00]/90 text-black" 
-                      : "hover:bg-gray-100 text-gray-700"
-                  } ${collapsed && !isMobile ? "px-3" : ""}`}
+                  className={`w-full justify-start h-auto p-3 ${isActive
+                    ? "bg-[#FFDC00] hover:bg-[#FFDC00]/90 text-black"
+                    : "hover:bg-gray-100 text-gray-700"
+                    } ${collapsed && !isMobile ? "px-3" : ""}`}
                   onClick={() => handleSectionClick(item.id)}
                 >
                   <div className="flex items-center gap-3 w-full">
                     <div className="relative">
                       <Icon className="w-5 h-5" />
                       {item.badge && (
-                        <Badge 
+                        <Badge
                           className="absolute -top-2 -right-2 bg-red-500 text-white text-xs min-w-[18px] h-[18px] flex items-center justify-center p-0"
                         >
                           {item.badge}
@@ -217,15 +210,15 @@ export default function AdminSidebar({
               )}
             </div>
           </div>
-          
+
           {(!collapsed || isMobile) && (
             <div className="space-y-2">
               <div className="text-xs text-gray-600">
                 {newOrdersCount} new orders
               </div>
-              <Button 
-                variant="outline" 
-                size="sm" 
+              <Button
+                variant="outline"
+                size="sm"
                 className="w-full text-xs border-gray-200 hover:bg-gray-50"
               >
                 View All

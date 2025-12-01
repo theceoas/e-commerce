@@ -2,7 +2,9 @@
 
 import { createContext, useContext, useEffect, useState } from 'react'
 import { User, Session, AuthError } from '@supabase/supabase-js'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/utils/supabase/client'
+
+const supabase = createClient()
 
 interface AuthContextType {
   user: (User & { role?: string }) | null
@@ -42,7 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .select('*')
           .eq('id', userId)
           .single();
-        
+
         data = dataById;
         error = errorById;
       }
@@ -59,13 +61,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
-    
+
     // Get initial session
     const getInitialSession = async () => {
       try {
         const { data: { session }, error } = await supabase.auth.getSession()
         if (!mounted) return;
-        
+
         if (error) {
           // Clear any invalid session data
           await supabase.auth.signOut()
@@ -101,7 +103,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return;
-        
+
         // Handle token refresh errors
         if (event === 'TOKEN_REFRESHED' && !session) {
           await supabase.auth.signOut()
@@ -110,39 +112,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setLoading(false)
           return
         }
-        
+
         setSession(session)
-        
+
         if (session?.user) {
           const profile = await fetchUserProfile(session.user.id)
           if (mounted) {
             setUser({ ...session.user, role: profile?.role || 'customer' })
           }
-          
-          // Create user profile if signing up (only if it doesn't exist)
-          if (event === 'SIGNED_UP' as any) {
-            const { data: existingProfile } = await supabase
-              .from('profiles')
-              .select('user_id')
-              .eq('user_id', session.user.id)
-              .single()
 
-            if (!existingProfile) {
-              await supabase
-                .from('profiles')
-                .insert({
-                  user_id: session.user.id,
-                  email: session.user.email,
-                  role: 'customer'
-                })
-            }
-          }
+          // Don't create profile here - signUp() function handles it with all required data
+          // (removed SIGNED_UP handler to prevent profile creation without first/last names)
         } else {
           if (mounted) {
             setUser(null)
           }
         }
-        
+
         if (mounted) {
           setLoading(false)
         }
@@ -167,36 +153,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        data: {
+          first_name: userData?.firstName,
+          last_name: userData?.lastName,
+          phone: userData?.phone,
+          role: 'customer' // SECURITY: Always 'customer' for public signups
+        }
+      }
     })
 
     if (error) return { error }
 
-    // Create user profile with default role
+    // Profile is now created automatically by the database trigger 'on_auth_user_created'
+    // This prevents race conditions and 409 Conflict errors
     if (data.user) {
-      // Check if profile already exists
-      const { data: existingProfile } = await supabase
-        .from('profiles')
-        .select('user_id')
-        .eq('user_id', data.user.id)
-        .single()
-
-      if (!existingProfile) {
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert({
-            user_id: data.user.id,
-            email: data.user.email,
-            first_name: userData?.firstName,
-            last_name: userData?.lastName,
-            phone: userData?.phone,
-            role: userData?.role || 'customer'
-          })
-
-        if (profileError) {
-          console.error('Error creating user profile:', profileError)
-          // Don't return error here as the user account was created successfully
-        }
-      }
+      console.log('User created successfully. Profile should be created by DB trigger.');
     }
 
     return { error: null }

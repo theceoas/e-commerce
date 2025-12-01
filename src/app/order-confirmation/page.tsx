@@ -2,15 +2,17 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client'
+
+const supabase = createClient();
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { 
-  CheckCircle, 
-  Package, 
-  Truck, 
-  Phone, 
+import {
+  CheckCircle,
+  Package,
+  Truck,
+  Phone,
   MapPin,
   ArrowRight,
   ShoppingBag
@@ -48,7 +50,7 @@ interface Order {
 function OrderConfirmationContent() {
   const searchParams = useSearchParams();
   const orderNumber = searchParams.get('order');
-  
+
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -182,7 +184,7 @@ function OrderConfirmationContent() {
                   {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
                 </Badge>
               </div>
-              
+
               <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="text-center p-4 bg-gray-50 rounded-lg">
                   <CheckCircle className="w-8 h-8 text-green-600 mx-auto mb-2" />
@@ -294,7 +296,7 @@ function OrderConfirmationContent() {
                   <span className="text-blue-600">₦{order.total_amount.toLocaleString()}</span>
                 </div>
               </div>
-              
+
 
             </div>
 
@@ -309,10 +311,6 @@ function OrderConfirmationContent() {
                 <div className="flex items-start space-x-2">
                   <Package className="w-4 h-4 text-blue-600 mt-0.5" />
                   <span>We'll notify you when your order ships</span>
-                </div>
-                <div className="flex items-start space-x-2">
-                  <Truck className="w-4 h-4 text-blue-600 mt-0.5" />
-                  <span>Track your package with the tracking number</span>
                 </div>
               </div>
             </div>

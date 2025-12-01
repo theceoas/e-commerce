@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client'
+
+const supabase = createClient();
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -28,7 +30,7 @@ interface ShippingZone {
 export default function AdminSettingsPage() {
   const [webhooks, setWebhooks] = useState<WebhookConfig[]>([]);
   const [shippingZones, setShippingZones] = useState<ShippingZone[]>([]);
-  
+
   // Debug: Check authentication
   useEffect(() => {
     const checkAuth = async () => {
@@ -68,13 +70,22 @@ export default function AdminSettingsPage() {
     try {
       console.log('Loading settings...');
       setLoading(true);
-      
+
       // Load webhooks
       console.log('Loading webhooks...');
-      const { data: webhookData, error: webhookError } = await supabase
+      // Load webhooks with timeout
+      console.log('Loading webhooks...');
+      const webhooksPromise = supabase
         .from('webhook_configs')
         .select('*')
         .order('created_at', { ascending: false });
+
+      const { data: webhookData, error: webhookError } = await Promise.race([
+        webhooksPromise,
+        new Promise<any>((_, reject) =>
+          setTimeout(() => reject(new Error('Request timed out')), 10000)
+        )
+      ]);
 
       if (webhookError) {
         console.error('Webhook error:', webhookError);
@@ -83,12 +94,19 @@ export default function AdminSettingsPage() {
       console.log('Webhooks loaded:', webhookData);
       setWebhooks(webhookData || []);
 
-      // Load shipping zones
+      // Load shipping zones with timeout
       console.log('Loading shipping zones...');
-      const { data: shippingData, error: shippingError } = await supabase
+      const shippingPromise = supabase
         .from('shipping_zones')
         .select('*')
         .order('name');
+
+      const { data: shippingData, error: shippingError } = await Promise.race([
+        shippingPromise,
+        new Promise<any>((_, reject) =>
+          setTimeout(() => reject(new Error('Request timed out')), 10000)
+        )
+      ]);
 
       if (shippingError) {
         console.error('Shipping zones error:', shippingError);
@@ -109,7 +127,7 @@ export default function AdminSettingsPage() {
   const saveWebhook = async () => {
     try {
       console.log('Saving webhook:', newWebhook);
-      
+
       if (!newWebhook.url.trim()) {
         toast.error("Webhook URL is required");
         return;
@@ -191,7 +209,7 @@ export default function AdminSettingsPage() {
   const saveShippingZone = async () => {
     try {
       console.log('Saving shipping zone:', newShippingZone);
-      
+
       if (!newShippingZone.name.trim()) {
         toast.error("Zone name is required");
         return;
@@ -267,10 +285,10 @@ export default function AdminSettingsPage() {
   const deleteShippingZone = async (id: string) => {
     try {
       console.log('Deleting shipping zone:', id);
-      
+
       // Get the zone data before deletion for webhook
       const zoneToDelete = shippingZones.find(z => z.id === id);
-      
+
       const { error } = await supabase
         .from('shipping_zones')
         .delete()
@@ -335,7 +353,7 @@ export default function AdminSettingsPage() {
 
       if (error) throw error;
 
-      setWebhooks(webhooks.map(w => 
+      setWebhooks(webhooks.map(w =>
         w.id === id ? { ...w, is_active: isActive } : w
       ));
 
@@ -349,10 +367,10 @@ export default function AdminSettingsPage() {
   const toggleShippingZoneStatus = async (id: string, isActive: boolean) => {
     try {
       console.log('Toggling shipping zone status:', id, isActive);
-      
+
       // Get the zone data before update for webhook
       const zoneToUpdate = shippingZones.find(z => z.id === id);
-      
+
       const { error } = await supabase
         .from('shipping_zones')
         .update({ is_active: isActive })
@@ -364,7 +382,7 @@ export default function AdminSettingsPage() {
       }
 
       console.log('Shipping zone status updated successfully');
-      setShippingZones(shippingZones.map(z => 
+      setShippingZones(shippingZones.map(z =>
         z.id === id ? { ...z, is_active: isActive } : z
       ));
 
@@ -496,11 +514,10 @@ export default function AdminSettingsPage() {
                       <div className="flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-medium capitalize text-sm sm:text-base">{webhook.event_type.replace('_', ' ')}</span>
-                          <span className={`px-2 py-1 text-xs rounded-full ${
-                            webhook.is_active 
-                              ? 'bg-green-100 text-green-800' 
-                              : 'bg-gray-100 text-gray-800'
-                          }`}>
+                          <span className={`px-2 py-1 text-xs rounded-full ${webhook.is_active
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-gray-100 text-gray-800'
+                            }`}>
                             {webhook.is_active ? 'Active' : 'Inactive'}
                           </span>
                         </div>
@@ -619,11 +636,10 @@ export default function AdminSettingsPage() {
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-medium text-sm sm:text-base">{zone.name}</span>
                           <span className="font-semibold text-green-600 text-sm sm:text-base">₦{zone.price.toLocaleString()}</span>
-                          <span className={`px-2 py-1 text-xs rounded-full ${
-                            zone.is_active 
-                              ? 'bg-green-100 text-green-800' 
-                              : 'bg-gray-100 text-gray-800'
-                          }`}>
+                          <span className={`px-2 py-1 text-xs rounded-full ${zone.is_active
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-gray-100 text-gray-800'
+                            }`}>
                             {zone.is_active ? 'Active' : 'Inactive'}
                           </span>
                         </div>

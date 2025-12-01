@@ -21,7 +21,7 @@ export default function AuthPage() {
   const [phone, setPhone] = useState("")
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  
+
   const { user, loading, signIn, signUp } = useAuth()
   const router = useRouter()
 
@@ -71,7 +71,7 @@ export default function AuthPage() {
     try {
       // All new signups default to customer role
       const role = 'customer';
-      
+
       await signUp(email, password, {
         firstName,
         lastName,
@@ -98,7 +98,7 @@ export default function AuthPage() {
     <div className="min-h-screen bg-gradient-to-br from-yellow-400/20 via-white/30 to-yellow-300/20 backdrop-blur-md flex items-center justify-center p-4">
       {/* Background Pattern */}
       <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
-      
+
       <div className="w-full max-w-md relative z-10">
         {/* Back to Home */}
         {/* Site Logo */}
@@ -107,8 +107,8 @@ export default function AuthPage() {
           <span className="text-2xl font-bold text-gray-900">Favorite Things</span>
         </div>
 
-        <Link 
-          href="/" 
+        <Link
+          href="/"
           className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-6 transition-colors"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
@@ -126,35 +126,33 @@ export default function AuthPage() {
                 {isLogin ? "Welcome Back" : "Create Account"}
               </CardTitle>
               <CardDescription>
-                {isLogin 
-                  ? "Sign in to your account to continue" 
+                {isLogin
+                  ? "Sign in to your account to continue"
                   : "Join us and start your journey"
                 }
               </CardDescription>
             </CardHeader>
-            
+
             <CardContent className="space-y-4">
               {/* Toggle Buttons */}
               <div className="flex bg-yellow-50 rounded-lg p-1 border border-yellow-200">
                 <button
                   type="button"
                   onClick={() => setIsLogin(true)}
-                  className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
-                    isLogin 
-                      ? 'bg-yellow-400 text-gray-900 shadow-sm' 
+                  className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${isLogin
+                      ? 'bg-yellow-400 text-gray-900 shadow-sm'
                       : 'text-gray-600 hover:text-gray-900 hover:bg-yellow-100'
-                  }`}
+                    }`}
                 >
                   Sign In
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsLogin(false)}
-                  className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
-                    !isLogin 
-                      ? 'bg-yellow-400 text-gray-900 shadow-sm' 
+                  className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${!isLogin
+                      ? 'bg-yellow-400 text-gray-900 shadow-sm'
                       : 'text-gray-600 hover:text-gray-900 hover:bg-yellow-100'
-                  }`}
+                    }`}
                 >
                   Sign Up
                 </button>
@@ -212,9 +210,9 @@ export default function AuthPage() {
                     </div>
                   </div>
 
-                  <Button 
-                    type="submit" 
-                    className="w-full" 
+                  <Button
+                    type="submit"
+                    className="w-full"
                     disabled={isLoading}
                   >
                     {isLoading ? "Signing in..." : "Sign In"}
@@ -325,9 +323,9 @@ export default function AuthPage() {
                     </div>
                   </div>
 
-                  <Button 
-                    type="submit" 
-                    className="w-full" 
+                  <Button
+                    type="submit"
+                    className="w-full"
                     disabled={isLoading}
                   >
                     {isLoading ? "Creating account..." : "Create Account"}
@@ -335,16 +333,7 @@ export default function AuthPage() {
                 </motion.form>
               )}
 
-              {/* Demo Credentials for Login */}
-              {isLogin && (
-                <div className="mt-6 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-                  <p className="text-sm font-medium text-yellow-900 mb-2">Demo Credentials:</p>
-                  <div className="text-xs text-yellow-700 space-y-1">
-                    <p><strong>Admin:</strong> admin@example.com / admin123</p>
-                    <p><strong>Customer:</strong> customer@example.com / customer123</p>
-                  </div>
-                </div>
-              )}
+
             </CardContent>
           </Card>
         </motion.div>

@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import dynamic from 'next/dynamic'
 import { motion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,25 +8,16 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Search, Filter, ArrowLeft, Grid, List } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/utils/supabase/client'
+
+const supabase = createClient()
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { ProductGridSkeleton } from '@/components/product-skeleton'
 import { useCart } from '@/contexts/CartContext'
 import { toast } from 'sonner'
 
-// Lazy load the ProductModal component
-const ProductModal = dynamic(
-  () => import('@/components/product-modal'),
-  { 
-    ssr: false,
-    loading: () => (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-      </div>
-    )
-  }
-)
+import ProductModal from '@/components/product-modal'
 
 interface Product {
   id: string
@@ -72,15 +62,11 @@ export default function SearchPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [isProductModalOpen, setIsProductModalOpen] = useState(false)
-  
+
   const router = useRouter()
   const { addToCart } = useCart()
 
-  // Prefetch ProductModal chunk to avoid runtime load errors
-  useEffect(() => {
-    const prefetch = () => import('@/components/product-modal')
-    prefetch().catch(() => {})
-  }, [])
+
 
   useEffect(() => {
     loadData()
@@ -89,7 +75,7 @@ export default function SearchPage() {
   const loadData = async () => {
     try {
       setLoading(true)
-      
+
       // Fetch products and brands in parallel (including out of stock products)
       const [productsResult, brandsResult] = await Promise.all([
         supabase
@@ -101,7 +87,7 @@ export default function SearchPage() {
             discount_end_date, discount_active, discounted_price, has_active_discount
           `)
           .order('created_at', { ascending: false }),
-        
+
         supabase
           .from('brands')
           .select('id, name, image_url, description, display_order, is_active')
@@ -125,7 +111,7 @@ export default function SearchPage() {
   // Filter and sort products
   const filteredProducts = products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         product.description.toLowerCase().includes(searchTerm.toLowerCase())
+      product.description.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesBrand = selectedBrand === 'all' || product.brand_id === selectedBrand
     return matchesSearch && matchesBrand
   }).sort((a, b) => {
@@ -289,7 +275,7 @@ export default function SearchPage() {
         {/* Products Grid/List */}
         {filteredProducts.length > 0 ? (
           <div className={
-            viewMode === 'grid' 
+            viewMode === 'grid'
               ? "grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6"
               : "space-y-4"
           }>
@@ -301,7 +287,7 @@ export default function SearchPage() {
                 transition={{ duration: 0.3, delay: index * 0.05 }}
               >
                 {viewMode === 'grid' ? (
-                  <Card 
+                  <Card
                     className="group cursor-pointer transition-all duration-300 hover:shadow-xl border-0 bg-white/90 backdrop-blur-sm overflow-hidden ring-1 ring-yellow-100 hover:ring-yellow-300"
                     onClick={() => handleProductClick(product)}
                     onMouseEnter={() => {
@@ -328,7 +314,7 @@ export default function SearchPage() {
                           height={400}
                           className="w-full aspect-[3/4] object-cover group-hover:scale-105 transition-transform duration-300"
                         />
-                        
+
                         {/* Discount Badge */}
                         {product.has_active_discount && (
                           <Badge className="absolute top-2 left-2 bg-red-500 text-white">
@@ -374,7 +360,7 @@ export default function SearchPage() {
                     </CardContent>
                   </Card>
                 ) : (
-                  <Card 
+                  <Card
                     className="cursor-pointer transition-all duration-300 hover:shadow-lg border-0 bg-white/90 backdrop-blur-sm ring-1 ring-yellow-100 hover:ring-yellow-300"
                     onClick={() => handleProductClick(product)}
                     onMouseEnter={() => {

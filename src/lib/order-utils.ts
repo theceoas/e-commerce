@@ -8,7 +8,7 @@ export async function generateUniqueOrderNumber(maxRetries: number = 10): Promis
       const day = now.getDate().toString().padStart(2, '0');
       const month = (now.getMonth() + 1).toString().padStart(2, '0');
       const dateStr = `${day}${month}`; // DDMM format
-      
+
       // Get the highest counter for today's date
       const { data: existingOrders, error } = await supabase
         .from('orders')
@@ -30,7 +30,9 @@ export async function generateUniqueOrderNumber(maxRetries: number = 10): Promis
         }
       }
 
-      const orderNumber = `KI-${dateStr}-${counter.toString().padStart(3, '0')}`;
+      // Add milliseconds to prevent race condition duplicates
+      const ms = now.getMilliseconds().toString().padStart(3, '0');
+      const orderNumber = `KI-${dateStr}-${counter.toString().padStart(3, '0')}-${ms}`;
 
       // Check if this order number already exists (to handle race conditions)
       const { data: duplicate, error: checkError } = await supabase
@@ -50,13 +52,13 @@ export async function generateUniqueOrderNumber(maxRetries: number = 10): Promis
       // If there's a race condition, try again with a small delay
       console.log(`Order number ${orderNumber} already exists, retrying... (attempt ${attempt})`);
       await new Promise(resolve => setTimeout(resolve, Math.random() * 100 + 50));
-      
+
     } catch (error) {
       console.error(`Error generating order number (attempt ${attempt}):`, error);
       if (attempt === maxRetries) {
         throw new Error(`Failed to generate unique order number after ${maxRetries} attempts`);
       }
-      
+
       // Wait before retrying
       await new Promise(resolve => setTimeout(resolve, Math.random() * 200 + 100));
     }

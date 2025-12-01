@@ -6,7 +6,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Search, Filter } from 'lucide-react'
-import { Product } from '@/lib/supabase'
+import { createClient } from '@/utils/supabase/client'
+import { type Product } from '@/lib/supabase'
+
+const supabase = createClient()
 
 interface ProductGridProps {
   products: Product[]
@@ -15,11 +18,11 @@ interface ProductGridProps {
   favorites?: string[]
 }
 
-export function ProductGrid({ 
-  products, 
-  onAddToCart, 
-  onToggleFavorite, 
-  favorites = [] 
+export function ProductGrid({
+  products,
+  onAddToCart,
+  onToggleFavorite,
+  favorites = []
 }: ProductGridProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
@@ -35,7 +38,7 @@ export function ProductGrid({
   const filteredProducts = useMemo(() => {
     let filtered = products.filter(product => {
       const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           product.description.toLowerCase().includes(searchTerm.toLowerCase())
+        product.description.toLowerCase().includes(searchTerm.toLowerCase())
       const matchesCategory = !selectedCategory || product.category === selectedCategory
       return matchesSearch && matchesCategory
     })

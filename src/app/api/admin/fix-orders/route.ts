@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/server';
 
 export async function POST(request: NextRequest) {
+  const supabase = await createClient()
   try {
     // This endpoint fixes orders that violate the user_id/guest_email constraint
     console.log('Starting orders constraint fix...');
@@ -20,10 +21,10 @@ export async function POST(request: NextRequest) {
     console.log(`Found ${orders?.length || 0} orders that need fixing`);
 
     if (!orders || orders.length === 0) {
-      return NextResponse.json({ 
-        success: true, 
+      return NextResponse.json({
+        success: true,
         message: 'No orders need fixing',
-        fixed: 0 
+        fixed: 0
       });
     }
 

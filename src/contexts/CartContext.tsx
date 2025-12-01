@@ -1,7 +1,9 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client'
+
+const supabase = createClient();
 import { useAuth } from './AuthContext';
 import { validatePromotionCode, PromotionApplication, PromotionValidationResult } from '@/lib/promotions';
 
@@ -124,12 +126,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         throw new Error('Failed to fetch product for cart');
       }
 
-      if (!productData?.in_stock) {
+      // Check if product has sizes with stock
+      const hasSizes = Array.isArray(productData?.sizes) && productData.sizes.length > 0;
+      const hasStockInSizes = hasSizes && productData.sizes.some((s: any) => (s.stock || 0) > 0);
+
+      // Only throw if out of stock AND no sizes have stock
+      if (!productData?.in_stock && !hasStockInSizes) {
         throw new Error('This product is currently out of stock');
       }
 
       // If product has sizes, ensure a valid size and stock
-      const hasSizes = Array.isArray(productData?.sizes) && productData.sizes.length > 0;
       if (hasSizes) {
         if (!size) {
           throw new Error('Please select a size before adding to cart');
@@ -311,15 +317,15 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const getCartTotal = () => {
     return items.reduce((total, item) => {
       // Use size-specific price if available (for MiniMe products), otherwise use product price
-      const basePrice = item.size_price !== undefined && item.size_price !== null 
-        ? item.size_price 
+      const basePrice = item.size_price !== undefined && item.size_price !== null
+        ? item.size_price
         : (item.product?.price || 0);
-      
+
       // Apply discount if applicable
-      const price = item.product?.has_active_discount && item.product?.discounted_price 
-        ? item.product.discounted_price 
+      const price = item.product?.has_active_discount && item.product?.discounted_price
+        ? item.product.discounted_price
         : basePrice;
-      
+
       return total + price * item.quantity;
     }, 0);
   };
@@ -351,7 +357,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
 
     setPromotionLoading(true);
-    
+
     try {
       const cartItemsForValidation = items.map(item => ({
         id: item.id,

@@ -3,8 +3,11 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/utils/supabase/client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { toast } from "sonner"
+
+const supabase = createClient()
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -94,7 +97,7 @@ export default function AccountPage() {
 
   const fetchUserData = async () => {
     if (!user) return
-    
+
     setLoadingData(true)
     try {
       // Fetch user profile
@@ -104,7 +107,7 @@ export default function AccountPage() {
         .eq('user_id', user.id)
         .single()
 
-      // Fetch orders
+      // Fetch orders - check both user_id and guest_email to capture all orders
       const { data: ordersData } = await supabase
         .from('orders')
         .select(`
@@ -125,7 +128,7 @@ export default function AccountPage() {
             )
           )
         `)
-        .eq('user_id', user.id)
+        .or(`user_id.eq.${user.id},guest_email.eq.${user.email}`)
         .order('created_at', { ascending: false })
 
       // Fetch addresses
@@ -172,11 +175,11 @@ export default function AccountPage() {
 
   const handlePasswordChange = async () => {
     if (newPassword !== confirmPassword) {
-      alert('Passwords do not match')
+      toast.error('Passwords do not match')
       return
     }
     if (newPassword.length < 6) {
-      alert('Password must be at least 6 characters')
+      toast.error('Password must be at least 6 characters')
       return
     }
 
@@ -185,16 +188,16 @@ export default function AccountPage() {
       const { error } = await supabase.auth.updateUser({
         password: newPassword
       })
-      
+
       if (error) {
-        alert('Error updating password: ' + error.message)
+        toast.error('Error updating password: ' + error.message)
       } else {
-        alert('Password updated successfully')
+        toast.success('Password updated successfully')
         setNewPassword('')
         setConfirmPassword('')
       }
     } catch (error) {
-      alert('Error updating password')
+      toast.error('Error updating password')
     } finally {
       setPasswordLoading(false)
     }
@@ -266,29 +269,29 @@ export default function AccountPage() {
         {/* Main Content */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid w-full grid-cols-4 bg-white shadow-sm border border-gray-200">
-            <TabsTrigger 
-              value="orders" 
+            <TabsTrigger
+              value="orders"
               className="flex items-center gap-2 data-[state=active]:bg-yellow-500 data-[state=active]:text-white"
             >
               <Package className="h-4 w-4" />
               Orders
             </TabsTrigger>
-            <TabsTrigger 
-              value="addresses" 
+            <TabsTrigger
+              value="addresses"
               className="flex items-center gap-2 data-[state=active]:bg-yellow-500 data-[state=active]:text-white"
             >
               <MapPin className="h-4 w-4" />
               Addresses
             </TabsTrigger>
-            <TabsTrigger 
-              value="wishlist" 
+            <TabsTrigger
+              value="wishlist"
               className="flex items-center gap-2 data-[state=active]:bg-yellow-500 data-[state=active]:text-white"
             >
               <Heart className="h-4 w-4" />
               Wishlist
             </TabsTrigger>
-            <TabsTrigger 
-              value="profile" 
+            <TabsTrigger
+              value="profile"
               className="flex items-center gap-2 data-[state=active]:bg-yellow-500 data-[state=active]:text-white"
             >
               <User className="h-4 w-4" />
@@ -314,8 +317,8 @@ export default function AccountPage() {
                   <div className="text-center py-8">
                     <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                     <p className="text-gray-500">No orders found</p>
-                    <Button 
-                      className="mt-4" 
+                    <Button
+                      className="mt-4"
                       onClick={() => router.push('/')}
                     >
                       Start Shopping
@@ -342,9 +345,9 @@ export default function AccountPage() {
                               </p>
                             </div>
                           </div>
-                          
+
                           <Separator className="my-4" />
-                          
+
                           <div className="space-y-3">
                             {order.order_items.map((item) => (
                               <div key={item.id} className="flex items-center gap-4">
@@ -367,7 +370,7 @@ export default function AccountPage() {
                               </div>
                             ))}
                           </div>
-                          
+
                           <div className="flex justify-end mt-4">
                             <Button variant="outline" size="sm">
                               <Eye className="h-4 w-4 mr-2" />
@@ -485,8 +488,8 @@ export default function AccountPage() {
                   <div className="text-center py-8">
                     <Heart className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                     <p className="text-gray-500">Your wishlist is empty</p>
-                    <Button 
-                      className="mt-4" 
+                    <Button
+                      className="mt-4"
                       onClick={() => router.push('/')}
                     >
                       Browse Products
@@ -552,8 +555,9 @@ export default function AccountPage() {
                     <Input
                       type="text"
                       value={profile?.first_name || ''}
-                      disabled
-                      className="bg-gray-50 text-gray-500"
+                      onChange={(e) => setProfile(prev => prev ? { ...prev, first_name: e.target.value } : null)}
+                      className="bg-white"
+                      placeholder="Enter first name"
                     />
                   </div>
                   <div>
@@ -563,8 +567,9 @@ export default function AccountPage() {
                     <Input
                       type="text"
                       value={profile?.last_name || ''}
-                      disabled
-                      className="bg-gray-50 text-gray-500"
+                      onChange={(e) => setProfile(prev => prev ? { ...prev, last_name: e.target.value } : null)}
+                      className="bg-white"
+                      placeholder="Enter last name"
                     />
                   </div>
                   <div>
@@ -575,8 +580,9 @@ export default function AccountPage() {
                       type="email"
                       value={user?.email || ''}
                       disabled
-                      className="bg-gray-50 text-gray-500"
+                      className="bg-gray-50 text-gray-500 cursor-not-allowed"
                     />
+                    <p className="text-xs text-gray-500 mt-1">Email cannot be changed</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -585,14 +591,43 @@ export default function AccountPage() {
                     <Input
                       type="tel"
                       value={profile?.phone || ''}
-                      disabled
-                      className="bg-gray-50 text-gray-500"
+                      onChange={(e) => setProfile(prev => prev ? { ...prev, phone: e.target.value } : null)}
+                      className="bg-white"
+                      placeholder="Enter phone number"
                     />
                   </div>
                 </div>
-                
+
+                <div className="flex justify-end">
+                  <Button
+                    onClick={async () => {
+                      if (!profile || !user) return;
+
+                      try {
+                        const { error } = await supabase
+                          .from('profiles')
+                          .update({
+                            first_name: profile.first_name,
+                            last_name: profile.last_name,
+                            phone: profile.phone
+                          })
+                          .eq('user_id', user.id);
+
+                        if (error) throw error;
+                        toast.success('Profile updated successfully');
+                      } catch (error: any) {
+                        console.error('Error updating profile:', error);
+                        toast.error('Failed to update profile: ' + error.message);
+                      }
+                    }}
+                    className="bg-yellow-500 hover:bg-yellow-600 text-white"
+                  >
+                    Save Changes
+                  </Button>
+                </div>
+
                 <Separator />
-                
+
                 <div>
                   <h3 className="text-lg font-semibold mb-4">Change Password</h3>
                   <div className="space-y-4 max-w-md">
@@ -620,10 +655,10 @@ export default function AccountPage() {
                         className="w-full"
                       />
                     </div>
-                    <Button 
+                    <Button
                       onClick={handlePasswordChange}
                       disabled={passwordLoading || !newPassword || !confirmPassword}
-                      className="bg-yellow-500 hover:bg-yellow-600 text-white"
+                      className="bg-gray-900 hover:bg-gray-800 text-white"
                     >
                       {passwordLoading ? 'Updating...' : 'Update Password'}
                     </Button>

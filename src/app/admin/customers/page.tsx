@@ -1,22 +1,24 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/utils/supabase/client'
+
+const supabase = createClient();
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { 
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { 
-  Users, 
-  Search, 
-  Filter, 
-  Eye, 
+import {
+  Users,
+  Search,
+  Filter,
+  Eye,
   Mail,
   Phone,
   MapPin,
@@ -74,15 +76,19 @@ export default function AdminCustomersPage() {
     averageOrderValue: 0
   });
 
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const ITEMS_PER_PAGE = 10;
+
   useEffect(() => {
     loadCustomers();
     loadStats();
-  }, []);
+  }, [page, sortBy, sortOrder]); // Reload when page or sort changes
 
   const loadCustomers = async () => {
     try {
       setLoading(true);
-      
+
       // Get current user session to ensure admin access
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
@@ -91,16 +97,28 @@ export default function AdminCustomersPage() {
         return;
       }
 
-      // Get customers first
+      // Get total count first for pagination
+      const { count } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true });
+
+      setTotalPages(Math.ceil((count || 0) / ITEMS_PER_PAGE));
+
+      // Get customers for current page
+      const from = (page - 1) * ITEMS_PER_PAGE;
+      const to = from + ITEMS_PER_PAGE - 1;
+
       const { data: customersData, error: customersError } = await supabase
         .from('profiles')
         .select('*')
-        .order(sortBy, { ascending: sortOrder === 'asc' });
+        .order(sortBy, { ascending: sortOrder === 'asc' })
+        .range(from, to);
 
       if (customersError) throw customersError;
 
       // Get order statistics and addresses for each customer
-      const customersWithStats = await Promise.all(
+      // We use a timeout to prevent hanging if this takes too long
+      const customersWithStatsPromise = Promise.all(
         (customersData || []).map(async (customer) => {
           // Get addresses for this customer
           const { data: addresses } = await supabase
@@ -134,6 +152,14 @@ export default function AdminCustomersPage() {
           };
         })
       );
+
+      // Wrap the complex data fetching in a timeout
+      const customersWithStats = await Promise.race([
+        customersWithStatsPromise,
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Request timed out')), 15000)
+        )
+      ]);
 
       setCustomers(customersWithStats);
     } catch (error) {
@@ -217,7 +243,7 @@ export default function AdminCustomersPage() {
     try {
       // Generate a temporary password for the customer
       const tempPassword = Math.random().toString(36).slice(-8);
-      
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password: tempPassword,
@@ -300,8 +326,8 @@ export default function AdminCustomersPage() {
                   <Download className="w-4 h-4 mr-2" />
                   Export
                 </Button>
-                <Button 
-                  size="sm" 
+                <Button
+                  size="sm"
                   onClick={() => setShowSignUpModal(true)}
                   className="bg-green-600 hover:bg-green-700 text-white shadow-sm"
                 >
@@ -328,7 +354,7 @@ export default function AdminCustomersPage() {
                 </div>
               </div>
             </div>
-            
+
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between">
                 <div>
@@ -340,7 +366,7 @@ export default function AdminCustomersPage() {
                 </div>
               </div>
             </div>
-            
+
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between">
                 <div>
@@ -352,7 +378,7 @@ export default function AdminCustomersPage() {
                 </div>
               </div>
             </div>
-            
+
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between">
                 <div>
@@ -398,8 +424,8 @@ export default function AdminCustomersPage() {
                   <SelectItem value="asc">Oldest First</SelectItem>
                 </SelectContent>
               </Select>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={loadCustomers}
                 className="border-gray-300 hover:bg-gray-50 hover:border-gray-400"
               >
@@ -446,83 +472,95 @@ export default function AdminCustomersPage() {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
                             <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                            <span className="text-blue-600 font-medium">
-                              {customer.first_name?.[0] || customer.email[0].toUpperCase()}
-                            </span>
-                          </div>
-                          <div className="ml-4">
-                            <div className="text-sm font-medium text-gray-900">
-                              {customer.first_name && customer.last_name
-                                ? `${customer.first_name} ${customer.last_name}`
-                                : 'No name provided'
-                              }
+                              <span className="text-blue-600 font-medium">
+                                {customer.first_name?.[0] || customer.email[0].toUpperCase()}
+                              </span>
                             </div>
-                            <div className="text-sm text-gray-500">{customer.email}</div>
+                            <div className="ml-4">
+                              <div className="text-sm font-medium text-gray-900">
+                                {customer.first_name && customer.last_name
+                                  ? `${customer.first_name} ${customer.last_name}`
+                                  : 'No name provided'
+                                }
+                              </div>
+                              <div className="text-sm text-gray-500">{customer.email}</div>
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="space-y-1">
-                          <div className="flex items-center text-sm text-gray-600">
-                            <Mail className="w-4 h-4 mr-2" />
-                            {customer.email}
-                          </div>
-                          {customer.phone && (
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="space-y-1">
                             <div className="flex items-center text-sm text-gray-600">
-                              <Phone className="w-4 h-4 mr-2" />
-                              {customer.phone}
+                              <Mail className="w-4 h-4 mr-2" />
+                              {customer.email}
                             </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {formatDate(customer.created_at)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {customer.orders_count}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        ₦{customer.total_spent.toLocaleString()}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <Badge className={tier.color}>
-                          {tier.label}
-                        </Badge>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedCustomer(customer);
-                            setShowCustomerDetails(true);
-                          }}
-                        >
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          
-          {filteredCustomers.length === 0 && (
-            <div className="text-center py-12">
-              <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No customers found</h3>
-              <p className="text-gray-500">
-                {searchTerm
-                  ? 'Try adjusting your search terms'
-                  : 'Customers will appear here when they sign up'
-                }
-              </p>
+                            {customer.phone && (
+                              <div className="flex items-center text-sm text-gray-600">
+                                <Phone className="w-4 h-4 mr-2" />
+                                {customer.phone}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {formatDate(customer.created_at)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {customer.orders_count}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          ₦{customer.total_spent.toLocaleString()}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <Badge className={tier.color}>
+                            {tier.label}
+                          </Badge>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedCustomer(customer);
+                              setShowCustomerDetails(true);
+                            }}
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-          )}
+          </div>
+
+          {/* Pagination Controls */}
+          <div className="flex items-center justify-between mt-4">
+            <div className="text-sm text-gray-500">
+              Showing page {page} of {totalPages}
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+              >
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
 
       {/* Customer Details Modal */}
       {showCustomerDetails && selectedCustomer && (
@@ -539,7 +577,7 @@ export default function AdminCustomersPage() {
                 </Button>
               </div>
             </div>
-            
+
             <div className="p-6 space-y-6">
               {/* Customer Info */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -562,21 +600,21 @@ export default function AdminCustomersPage() {
                         <p className="text-sm text-gray-600">{selectedCustomer.email}</p>
                       </div>
                     </div>
-                    
+
                     {selectedCustomer.phone && (
                       <div className="flex items-center space-x-2">
                         <Phone className="w-4 h-4 text-gray-400" />
                         <span>{selectedCustomer.phone}</span>
                       </div>
                     )}
-                    
+
                     <div className="flex items-center space-x-2">
                       <Calendar className="w-4 h-4 text-gray-400" />
                       <span>Joined {formatDate(selectedCustomer.created_at)}</span>
                     </div>
                   </div>
                 </div>
-                
+
                 <div>
                   <h3 className="text-lg font-medium mb-3">Order Statistics</h3>
                   <div className="space-y-3">
@@ -591,7 +629,7 @@ export default function AdminCustomersPage() {
                     <div className="flex justify-between">
                       <span className="text-gray-600">Average Order:</span>
                       <span className="font-medium">
-                        ₦{selectedCustomer.orders_count > 0 
+                        ₦{selectedCustomer.orders_count > 0
                           ? Math.round(selectedCustomer.total_spent / selectedCustomer.orders_count).toLocaleString()
                           : '0'
                         }
@@ -676,7 +714,7 @@ export default function AdminCustomersPage() {
                 ×
               </Button>
             </div>
-            
+
             <form onSubmit={handleSignUp} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -690,7 +728,7 @@ export default function AdminCustomersPage() {
                   className="w-full"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   First Name
@@ -702,7 +740,7 @@ export default function AdminCustomersPage() {
                   className="w-full"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Last Name
@@ -714,7 +752,7 @@ export default function AdminCustomersPage() {
                   className="w-full"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Phone Number
@@ -726,7 +764,7 @@ export default function AdminCustomersPage() {
                   className="w-full"
                 />
               </div>
-              
+
               <div className="flex space-x-3 pt-4">
                 <Button
                   type="button"

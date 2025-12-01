@@ -14,7 +14,9 @@ import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { CalendarIcon, Plus, Edit, Trash2, Copy, Eye, EyeOff, Send, Check, X } from 'lucide-react'
 import { format } from 'date-fns'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/utils/supabase/client'
+
+const supabase = createClient()
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
@@ -89,7 +91,8 @@ export default function PromotionsManagement() {
 
   const fetchPromotions = async () => {
     try {
-      const { data, error } = await supabase
+      // Wrap query in timeout
+      const promotionsPromise = supabase
         .from('promotions')
         .select(`
           *,
@@ -97,6 +100,13 @@ export default function PromotionsManagement() {
           products(name)
         `)
         .order('created_at', { ascending: false })
+
+      const { data, error } = await Promise.race([
+        promotionsPromise,
+        new Promise<any>((_, reject) =>
+          setTimeout(() => reject(new Error('Request timed out')), 10000)
+        )
+      ])
 
       if (error) throw error
       setPromotions(data || [])
@@ -174,7 +184,7 @@ export default function PromotionsManagement() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     try {
       const promotionData = {
         code: formData.code.toUpperCase(),
@@ -210,7 +220,7 @@ export default function PromotionsManagement() {
           .single()
 
         if (error) throw error
-        
+
         // Trigger promotion_created webhook
         try {
           const webhookResponse = await fetch('/api/webhooks', {
@@ -252,7 +262,7 @@ export default function PromotionsManagement() {
           console.error('Error triggering promotion created webhook:', webhookError);
           // Don't fail the promotion creation if webhook fails
         }
-        
+
         toast.success('Promotion created successfully')
       }
 
@@ -392,7 +402,7 @@ export default function PromotionsManagement() {
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Promotions Management</h1>
           <p className="text-gray-600 mt-2 text-sm sm:text-base">Create and manage discount codes for your store</p>
         </div>
-        
+
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button onClick={resetForm} className="bg-black text-white hover:bg-gray-800 w-full sm:w-auto">
@@ -400,14 +410,14 @@ export default function PromotionsManagement() {
               Create Promotion
             </Button>
           </DialogTrigger>
-          
+
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {editingPromotion ? 'Edit Promotion' : 'Create New Promotion'}
               </DialogTitle>
             </DialogHeader>
-            
+
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -425,7 +435,7 @@ export default function PromotionsManagement() {
                     </Button>
                   </div>
                 </div>
-                
+
                 <div>
                   <Label htmlFor="name">Promotion Name</Label>
                   <Input
@@ -461,7 +471,7 @@ export default function PromotionsManagement() {
                     </SelectContent>
                   </Select>
                 </div>
-                
+
                 <div>
                   <Label htmlFor="discount_value">
                     Discount Value {formData.discount_type === 'percentage' ? '(%)' : '(₦)'}
@@ -491,7 +501,7 @@ export default function PromotionsManagement() {
                     onChange={(e) => setFormData(prev => ({ ...prev, minimum_order_amount: e.target.value }))}
                   />
                 </div>
-                
+
                 {formData.discount_type === 'percentage' && (
                   <div>
                     <Label htmlFor="maximum_discount_amount">Maximum Discount Amount (₦)</Label>
@@ -568,7 +578,7 @@ export default function PromotionsManagement() {
                     placeholder="Unlimited"
                   />
                 </div>
-                
+
                 <div>
                   <Label htmlFor="max_uses_per_user">Max Uses Per User</Label>
                   <Input
@@ -608,7 +618,7 @@ export default function PromotionsManagement() {
                     </PopoverContent>
                   </Popover>
                 </div>
-                
+
                 <div>
                   <Label>End Date (Optional)</Label>
                   <Popover>
@@ -678,7 +688,7 @@ export default function PromotionsManagement() {
             <div className="text-2xl font-bold">{promotions.length}</div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">Active Promotions</CardTitle>
@@ -689,7 +699,7 @@ export default function PromotionsManagement() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">Total Uses</CardTitle>
@@ -700,7 +710,7 @@ export default function PromotionsManagement() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">Expired</CardTitle>
@@ -755,22 +765,22 @@ export default function PromotionsManagement() {
                         )}
                       </div>
                     </div>
-                    
+
                     {promotion.description && (
                       <p className="text-gray-600 mb-3 text-sm">{promotion.description}</p>
                     )}
-                    
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 text-sm">
                       <div>
                         <span className="font-medium">Discount:</span>
                         <div>
-                          {promotion.discount_type === 'percentage' 
-                            ? `${promotion.discount_value}%` 
+                          {promotion.discount_type === 'percentage'
+                            ? `${promotion.discount_value}%`
                             : `₦${promotion.discount_value.toLocaleString()}`
                           }
                         </div>
                       </div>
-                      
+
                       <div>
                         <span className="font-medium">Applies to:</span>
                         <div>
@@ -779,7 +789,7 @@ export default function PromotionsManagement() {
                           {promotion.applies_to === 'product' && promotion.products?.name}
                         </div>
                       </div>
-                      
+
                       <div>
                         <span className="font-medium">Usage:</span>
                         <div>
@@ -787,11 +797,11 @@ export default function PromotionsManagement() {
                           {promotion.usage_limit ? ` / ${promotion.usage_limit}` : ' / ∞'}
                         </div>
                       </div>
-                      
+
                       <div>
                         <span className="font-medium">Expires:</span>
                         <div>
-                          {promotion.expires_at 
+                          {promotion.expires_at
                             ? format(new Date(promotion.expires_at), 'MMM dd, yyyy')
                             : 'Never'
                           }
@@ -799,7 +809,7 @@ export default function PromotionsManagement() {
                       </div>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center gap-2 sm:ml-4">
                     <Button
                       variant="outline"
