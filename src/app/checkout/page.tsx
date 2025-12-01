@@ -39,8 +39,9 @@ import { generateUniqueOrderNumber } from '@/lib/order-utils';
 import dynamic from 'next/dynamic';
 
 // Dynamically import PaystackButton to avoid SSR issues
-const PaystackButton = dynamic(
-  () => import('react-paystack').then((mod) => mod.PaystackButton),
+// Dynamically import PaystackPaymentButton to avoid SSR issues
+const PaystackPaymentButton = dynamic(
+  () => import('@/components/paystack-payment-button'),
   { ssr: false }
 );
 
@@ -281,11 +282,18 @@ export default function CheckoutPage() {
     const shippingCost = selectedShippingZone?.price || 0;
     const totalWithShipping = getFinalTotal() + shippingCost;
 
+    if (!process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY) {
+      console.error('Paystack public key is missing');
+      // Don't show toast here to avoid spamming, but prevent config setting
+      setPaymentConfig(null);
+      return;
+    }
+
     const config = {
       reference: `FT_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       email: form.email,
       amount: Math.round(totalWithShipping * 100), // Paystack expects amount in kobo
-      publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY!,
+      publicKey: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
       text: `Pay ₦${totalWithShipping.toLocaleString()}`,
       onSuccess: handlePaymentSuccess,
       onClose: handlePaymentClose,
@@ -951,23 +959,12 @@ export default function CheckoutPage() {
 
               {/* Paystack Payment Button */}
               {paymentConfig ? (
-                <PaystackButton
-                  {...paymentConfig}
-                  className="w-full bg-orange-600 hover:bg-orange-700 text-white py-4 text-lg font-semibold rounded-md transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                <PaystackPaymentButton
+                  config={paymentConfig}
+                  amount={getFinalTotal() + (selectedShippingZone?.price || 0)}
+                  loading={loading}
                   disabled={loading || !validateFormSilently()}
-                >
-                  {loading ? (
-                    <>
-                      <div className="w-5 h-5 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Processing Order...
-                    </>
-                  ) : (
-                    <>
-                      <Lock className="w-5 h-5 mr-2" />
-                      Pay ₦{(getFinalTotal() + (selectedShippingZone?.price || 0)).toLocaleString()} with Paystack
-                    </>
-                  )}
-                </PaystackButton>
+                />
               ) : (
                 <Button
                   type="button"
