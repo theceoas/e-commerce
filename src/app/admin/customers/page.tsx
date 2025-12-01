@@ -119,7 +119,7 @@ export default function AdminCustomersPage() {
       // Get order statistics and addresses for each customer
       // We use a timeout to prevent hanging if this takes too long
       const customersWithStatsPromise = Promise.all(
-        (customersData || []).map(async (customer) => {
+        (customersData || []).map(async (customer: any) => {
           // Get addresses for this customer
           const { data: addresses } = await supabase
             .from('addresses')
@@ -141,7 +141,7 @@ export default function AdminCustomersPage() {
             .limit(5);
 
           const ordersCount = orderStats?.length || 0;
-          const totalSpent = orderStats?.reduce((sum, order) => sum + order.total_amount, 0) || 0;
+          const totalSpent = orderStats?.reduce((sum: number, order: any) => sum + order.total_amount, 0) || 0;
 
           return {
             ...customer,
@@ -193,7 +193,7 @@ export default function AdminCustomersPage() {
         .select('total_amount')
         .eq('payment_status', 'paid');
 
-      const totalRevenue = revenueData?.reduce((sum, order) => sum + order.total_amount, 0) || 0;
+      const totalRevenue = revenueData?.reduce((sum: number, order: any) => sum + order.total_amount, 0) || 0;
       const averageOrderValue = revenueData?.length ? totalRevenue / revenueData.length : 0;
 
       setStats({
