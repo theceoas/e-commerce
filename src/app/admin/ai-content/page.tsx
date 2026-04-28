@@ -322,7 +322,7 @@ export default function AIContentPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="border-b border-gray-200 bg-white sticky top-0 z-40">
+      <header className="border-b border-gray-200 bg-white sticky top-16 lg:top-0 z-40">
         <div className="px-6 py-3.5 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-[#FFDC00]" />

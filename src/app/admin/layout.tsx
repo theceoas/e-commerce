@@ -135,11 +135,8 @@ export default function AdminLayout({
         </div>
         
         {/* Main Content Area */}
-        <div 
-          className={`transition-all duration-300 min-h-screen
-            pt-16 lg:pt-0
-            lg:ml-[280px] lg:${isCollapsed ? 'ml-[80px]' : 'ml-[280px]'}
-          `}
+        <div
+          className={`transition-all duration-300 min-h-screen pt-16 lg:pt-0 ${isCollapsed ? 'lg:ml-20' : 'lg:ml-[280px]'}`}
         >
           {children}
         </div>

@@ -203,7 +203,7 @@ export default function AdminDashboard() {
       <div className="min-h-screen">
         <div className="w-full">
           {/* Header */}
-          <header className="border-b border-gray-200 bg-white/80 backdrop-blur-sm sticky top-0 z-40 shadow-sm">
+          <header className="border-b border-gray-200 bg-white/80 backdrop-blur-sm sticky top-16 lg:top-0 z-40 shadow-sm">
             <div className="container mx-auto px-4 py-4">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
@@ -238,7 +238,7 @@ export default function AdminDashboard() {
       {/* Main Content */}
       <div className="w-full">
         {/* Header */}
-        <header className="border-b border-gray-200 bg-white/80 backdrop-blur-sm sticky top-0 z-40 shadow-sm">
+        <header className="border-b border-gray-200 bg-white/80 backdrop-blur-sm sticky top-16 lg:top-0 z-40 shadow-sm">
           <div className="container mx-auto px-4 py-4">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>

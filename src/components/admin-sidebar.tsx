@@ -160,7 +160,7 @@ export default function AdminSidebar({
         </div>
 
         {/* Navigation */}
-        <div className="flex-1 p-4 space-y-2">
+        <div className="flex-1 overflow-y-auto p-4 space-y-2">
           {navigationItems.map((item) => {
             const Icon = item.icon
             const isActive = activeSection === item.id
