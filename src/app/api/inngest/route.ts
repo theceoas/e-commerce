@@ -4,6 +4,5 @@ import { generateImage, sendOrderConfirmation, sendOrderStatusEmail } from "@/in
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
-  signingKey: process.env.INNGEST_SIGNING_KEY,
   functions: [generateImage, sendOrderConfirmation, sendOrderStatusEmail],
 })
