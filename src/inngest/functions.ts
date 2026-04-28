@@ -160,12 +160,8 @@ export const sendOrderConfirmation = inngest.createFunction(
 
       const { subject, html } = orderConfirmationEmail(emailData)
 
-      await resend.emails.send({
-        from: FROM,
-        to: customerEmail,
-        subject,
-        html,
-      })
+      const { error } = await resend.emails.send({ from: FROM, to: customerEmail, subject, html })
+      if (error) throw new Error(`Resend error: ${error.message}`)
     })
 
     return { sent: true }
@@ -214,12 +210,8 @@ export const sendOrderStatusEmail = inngest.createFunction(
       const emailFn = newStatus === "shipped" ? outForDeliveryEmail : deliveredEmail
       const { subject, html } = emailFn(emailData)
 
-      await resend.emails.send({
-        from: FROM,
-        to: customerEmail,
-        subject,
-        html,
-      })
+      const { error } = await resend.emails.send({ from: FROM, to: customerEmail, subject, html })
+      if (error) throw new Error(`Resend error: ${error.message}`)
     })
 
     return { sent: true, status: newStatus }
