@@ -1,9 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   images: {
     unoptimized: true,
     remotePatterns: [
@@ -29,9 +26,7 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   generateEtags: true,
   experimental: {
-    optimizeCss: true,
     optimizePackageImports: ['framer-motion', 'lucide-react'],
-    cssChunking: 'strict',
   },
   compiler: {
     // Only remove console in production, but keep console.error and console.warn
