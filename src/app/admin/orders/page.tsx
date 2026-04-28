@@ -263,52 +263,26 @@ export default function AdminOrdersPage() {
         throw error;
       }
 
-      // Trigger shipping_update webhook for order status change
-      try {
-        const webhookResponse = await fetch('/api/webhooks', {
+      // Fire status change event to Inngest (non-blocking)
+      const customerEmail = currentOrder.guest_email || null;
+      if (customerEmail) {
+        fetch('/api/events', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            event_type: 'shipping_update',
+            event_name: 'order/status.changed',
             data: {
-              action: 'status_changed',
-              order: {
-                id: orderId,
-                order_number: currentOrder.order_number,
-                previous_status: currentOrder.status,
-                new_status: newStatus,
-                total_amount: currentOrder.total_amount,
-                subtotal: currentOrder.subtotal,
-                payment_status: currentOrder.payment_status,
-                created_at: currentOrder.created_at,
-                updated_at: new Date().toISOString(),
-                customer: {
-                  email: currentOrder.guest_email || 'N/A',
-                  user_id: currentOrder.user_id || null,
-                  is_guest: !currentOrder.user_id
-                },
-                shipping_address: currentOrder.shipping_address || null,
-                order_items: currentOrder.order_items || [],
-                shipping_cost: currentOrder.shipping_cost || 0
-              }
+              orderId,
+              newStatus,
+              previousStatus: currentOrder.status,
+              customerEmail,
+              customerName: currentOrder.shipping_address?.first_name || 'there',
             }
-          })
-        });
-
-        const webhookResult = await webhookResponse.json();
-        console.log('Webhook triggered:', webhookResult);
-
-        if (webhookResult.triggered > 0) {
-          toast.success(`Order status updated and ${webhookResult.triggered} webhook(s) triggered`);
-        } else {
-          toast.success('Order status updated successfully');
-        }
-      } catch (webhookError) {
-        console.error('Error triggering webhook:', webhookError);
-        toast.success('Order status updated (webhook failed)');
+          }),
+        }).catch(() => {/* non-blocking */});
       }
+
+      toast.success('Order status updated successfully');
 
       // Refresh orders list
       loadOrders();

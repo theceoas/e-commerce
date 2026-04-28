@@ -16,7 +16,8 @@ import {
   Home,
   ChevronLeft,
   ChevronRight,
-  Star
+  Star,
+  Sparkles
 } from "lucide-react"
 
 interface AdminSidebarProps {
@@ -102,6 +103,13 @@ export default function AdminSidebar({
       icon: Tag,
       description: "Manage bulk product discounts",
       route: "/admin/discounts"
+    },
+    {
+      id: "ai-content",
+      label: "AI Content",
+      icon: Sparkles,
+      description: "Generate images & videos",
+      route: "/admin/ai-content"
     }
   ]
 

@@ -156,7 +156,7 @@ export function ProductCard({
 
         <Button
           size="sm"
-          className="absolute bottom-2 sm:bottom-4 right-2 sm:right-4 bg-blue-600 hover:bg-blue-700 text-white rounded-full w-8 h-8 sm:w-10 sm:h-10 p-0 shadow-lg transition-all duration-200"
+          className="absolute bottom-2 sm:bottom-4 right-2 sm:right-4 bg-yellow-400 hover:bg-yellow-300 text-black rounded-full w-8 h-8 sm:w-10 sm:h-10 p-0 shadow-lg transition-all duration-200"
           onClick={handleAddToCart}
           disabled={!isInStock || isLoading}
         >

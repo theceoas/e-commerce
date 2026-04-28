@@ -81,6 +81,7 @@ export default function AdminLayout({
     if (pathname.startsWith('/admin/brands')) return 'brands'
     if (pathname.startsWith('/admin/promotions')) return 'promotions'
     if (pathname.startsWith('/admin/settings')) return 'settings'
+    if (pathname.startsWith('/admin/ai-content')) return 'ai-content'
     return 'dashboard'
   }
 

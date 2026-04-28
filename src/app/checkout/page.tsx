@@ -517,54 +517,19 @@ export default function CheckoutPage() {
         }
       }
 
-      // Trigger purchase webhook (non-blocking / short timeout)
-      try {
-        // Don't await the full response if it takes too long
-        // We use a shorter timeout of 2 seconds to avoid blocking the UI
-        const webhookResponse = await fetch('/api/webhooks', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            event_type: 'purchase',
-            data: {
-              order_id: order.id,
-              order_number: order.order_number,
-              total_amount: totalWithShipping,
-              subtotal: subtotalAmount,
-              shipping_cost: shippingCost,
-              discount_amount: discountAmount,
-              customer_email: userId ? null : form.email,
-              user_id: userId,
-              items: orderItems.map(item => ({
-                product_id: item.product_id,
-                quantity: item.quantity,
-                size: item.size,
-                unit_price: item.unit_price,
-                total_price: item.total_price
-              })),
-              shipping_address: order.shipping_address,
-              payment_reference: reference.reference,
-              created_at: new Date().toISOString()
-            }
-          }),
-          signal: AbortSignal.timeout(2000) // Reduced to 2 seconds
-        });
-
-        if (webhookResponse.ok) {
-          const webhookResult = await webhookResponse.json();
-          console.log('Purchase webhook triggered successfully:', webhookResult);
-        } else {
-          console.error('Failed to trigger purchase webhook:', await webhookResponse.text());
-        }
-      } catch (webhookError) {
-        if (webhookError instanceof Error && webhookError.name === 'AbortError') {
-          console.log('Purchase webhook request sent (timed out waiting for response, which is expected)');
-        } else {
-          console.error('Error triggering purchase webhook:', webhookError);
-        }
-      }
+      // Fire order confirmation event to Inngest (non-blocking)
+      fetch('/api/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event_name: 'order/purchase.completed',
+          data: {
+            orderId: order.id,
+            customerEmail: form.email,
+            customerName: `${form.firstName} ${form.lastName}`.trim(),
+          }
+        }),
+      }).catch(() => {/* non-blocking — don't fail checkout */})
 
       // Clear cart and redirect to order confirmation
       await clearCart();

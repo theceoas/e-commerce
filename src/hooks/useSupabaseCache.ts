@@ -89,7 +89,7 @@ export function useSupabaseCache<T>(
   } = options
 
   const [data, setData] = useState<T | null>(null)
-  const [loading, setLoading] = useState(!enabled) // Start as not loading if disabled
+  const [loading, setLoading] = useState(enabled) // Start loading when enabled
   const [error, setError] = useState<Error | null>(null)
   const [retryCount, setRetryCount] = useState(0)
 
@@ -122,8 +122,10 @@ export function useSupabaseCache<T>(
         try {
           const result = await queryFn()
 
-          // Cache the result
-          cache.set(key, result, ttl)
+          // Don't cache empty arrays — could be a transient Supabase hiccup
+          if (!Array.isArray(result) || result.length > 0) {
+            cache.set(key, result, ttl)
+          }
           setData(result)
           setRetryCount(0) // Reset retry count on success
 
