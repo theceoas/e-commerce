@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/utils/supabase/client'
 
 const supabase = createClient()
@@ -89,12 +89,15 @@ export function useSupabaseCache<T>(
   } = options
 
   const [data, setData] = useState<T | null>(null)
-  const [loading, setLoading] = useState(enabled) // Start loading when enabled
+  const [loading, setLoading] = useState(enabled)
   const [error, setError] = useState<Error | null>(null)
   const [retryCount, setRetryCount] = useState(0)
 
+  // Keep queryFn in a ref so changes to it never trigger re-fetches
+  const queryFnRef = useRef(queryFn)
+  useEffect(() => { queryFnRef.current = queryFn })
+
   const fetchData = useCallback(async (forceRefresh = false) => {
-    // If disabled, immediately end loading and do nothing
     if (!enabled) {
       setLoading(false)
       setData(null)
@@ -105,43 +108,35 @@ export function useSupabaseCache<T>(
       setLoading(true)
       setError(null)
 
-      // Check cache first unless forcing refresh
       if (!forceRefresh) {
         const cachedData = cache.get<T>(key)
         if (cachedData) {
-          // Show cached data immediately for fast display
           setData(cachedData)
           setLoading(false)
           return cachedData
         }
       }
 
-      // Fetch fresh data with retry logic
       let lastError: Error | null = null
       for (let attempt = 0; attempt <= retryAttempts; attempt++) {
         try {
-          const result = await queryFn()
+          const result = await queryFnRef.current()
 
-          // Don't cache empty arrays — could be a transient Supabase hiccup
           if (!Array.isArray(result) || result.length > 0) {
             cache.set(key, result, ttl)
           }
           setData(result)
-          setRetryCount(0) // Reset retry count on success
-
+          setRetryCount(0)
           return result
         } catch (err) {
           lastError = err instanceof Error ? err : new Error('Unknown error')
-
           if (attempt < retryAttempts) {
-            // Wait before retrying
             await new Promise(resolve => setTimeout(resolve, retryDelay * (attempt + 1)))
             setRetryCount(attempt + 1)
           }
         }
       }
 
-      // If we get here, all retries failed
       throw lastError
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Unknown error')
@@ -150,7 +145,9 @@ export function useSupabaseCache<T>(
     } finally {
       setLoading(false)
     }
-  }, [key, queryFn, ttl, enabled, retryAttempts, retryDelay])
+  // queryFn intentionally excluded — using ref to avoid infinite re-fetch loop
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, ttl, enabled, retryAttempts, retryDelay])
 
   const refetch = useCallback(() => fetchData(true), [fetchData])
 
@@ -159,15 +156,11 @@ export function useSupabaseCache<T>(
   }, [key])
 
   useEffect(() => {
-    // If disabled, ensure loading is false and skip fetching
     if (!enabled) {
       setLoading(false)
       setData(null)
       return
     }
-
-    // Always fetch when key or enabled changes (e.g., when brandId changes from empty to a value)
-    // This ensures we get fresh data when the query parameters change
     fetchData(refetchOnMount)
   }, [key, enabled, fetchData, refetchOnMount])
 
