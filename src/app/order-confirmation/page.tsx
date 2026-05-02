@@ -2,9 +2,6 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { createClient } from '@/utils/supabase/client'
-
-const supabase = createClient();
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -65,32 +62,30 @@ function OrderConfirmationContent() {
   }, [orderNumber]);
 
   const loadOrder = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('orders')
-        .select(`
-          *,
-          order_items (
-            *,
-            products (
-              id,
-              name,
-              thumbnail_url,
-              additional_images,
-              price
-            )
-          )
-        `)
-        .eq('order_number', orderNumber)
-        .single();
-
-      if (error) throw error;
-      setOrder(data);
-    } catch (error) {
-      console.error('Error loading order:', error);
-      setError('Order not found');
-    } finally {
-      setLoading(false);
+    setLoading(true);
+    setError(null);
+    // Retry up to 3 times in case of a brief propagation delay
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const res = await fetch(`/api/orders/lookup?order_number=${encodeURIComponent(orderNumber!)}`)
+        const data = await res.json()
+        if (!res.ok) {
+          if (attempt < 3) {
+            await new Promise(r => setTimeout(r, 800))
+            continue
+          }
+          throw new Error(data.error || 'Order not found')
+        }
+        setOrder(data)
+        setLoading(false)
+        return
+      } catch (err) {
+        if (attempt === 3) {
+          console.error('Error loading order:', err)
+          setError('Order not found')
+          setLoading(false)
+        }
+      }
     }
   };
 

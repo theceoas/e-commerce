@@ -74,6 +74,10 @@ function baseLayout(title: string, previewText: string, body: string): string {
             <a href="${SITE}" style="display:inline-block;background:${Y};color:${BK};font-size:13px;font-weight:700;padding:11px 28px;border-radius:8px;text-decoration:none;margin-bottom:20px;letter-spacing:0.3px;">
               Continue Shopping
             </a>
+            <p style="margin:0 0 8px;color:#aaa;font-size:12px;line-height:1.6;">
+              Questions? DM us on Instagram
+              <a href="https://www.instagram.com/favoritethingsngr/" style="color:${Y};text-decoration:none;font-weight:600;">@favoritethingsngr</a>
+            </p>
             <p style="margin:0;color:#888;font-size:12px;line-height:1.6;">
               You received this email because you placed an order with Favorite Things Lifestyle.
             </p>
@@ -97,6 +101,13 @@ function itemsTable(items: OrderItem[]): string {
       <td style="padding:12px 0;border-bottom:1px solid #f0f0f0;">
         <table width="100%" cellpadding="0" cellspacing="0">
           <tr>
+            ${item.thumbnail_url ? `
+            <td style="vertical-align:top;width:56px;padding-right:12px;">
+              <img src="${item.thumbnail_url}" width="48" height="48" alt="${item.name}" style="border-radius:6px;object-fit:cover;display:block;width:48px;height:48px;" />
+            </td>` : `
+            <td style="vertical-align:top;width:56px;padding-right:12px;">
+              <div style="width:48px;height:48px;background:#f0f0f0;border-radius:6px;"></div>
+            </td>`}
             <td style="vertical-align:top;">
               <p style="margin:0;font-size:14px;font-weight:600;color:${BK};">${item.name}</p>
               <p style="margin:2px 0 0;font-size:12px;color:${GY};">
@@ -260,7 +271,8 @@ export function outForDeliveryEmail(data: OrderEmailData): { subject: string; ht
         <div style="background:${LG};border-radius:10px;padding:20px 24px;text-align:center;">
           <p style="margin:0;font-size:14px;color:${GY};line-height:1.6;">
             Please make sure someone is available to receive the package.<br>
-            If you have any questions, reply to this email.
+            Questions? Text us on Instagram
+            <a href="https://www.instagram.com/favoritethingsngr/" style="color:${BK};font-weight:700;text-decoration:none;">@favoritethingsngr</a>
           </p>
         </div>
       </td>
@@ -306,4 +318,52 @@ export function deliveredEmail(data: OrderEmailData): { subject: string; html: s
     </tr>`
 
   return { subject, html: baseLayout("Delivered — Favorite Things Lifestyle", `Your order #${data.orderNumber} has arrived!`, body) }
+}
+
+// ── 4. Completed ──────────────────────────────────────────────────────────────
+
+export function orderCompletedEmail(data: OrderEmailData): { subject: string; html: string } {
+  const subject = `Thank you for your order 💛 — #${data.orderNumber}`
+
+  const body = `
+    <tr><td style="background:${Y};height:4px;"></td></tr>
+
+    <tr>
+      <td style="padding:40px 40px 32px;text-align:center;">
+        <div style="font-size:52px;margin-bottom:16px;">💛</div>
+        <h1 style="margin:0 0 8px;font-size:24px;font-weight:800;color:${BK};">Order Complete!</h1>
+        <p style="margin:0;font-size:15px;color:${GY};">Hey ${data.customerName}, your order is all done. Thank you for shopping with us.</p>
+      </td>
+    </tr>
+
+    <tr>
+      <td style="padding:0 40px 32px;text-align:center;">
+        <div style="display:inline-block;background:${LG};border:1px solid #e0e0e0;border-radius:8px;padding:12px 24px;">
+          <p style="margin:0;font-size:11px;color:${GY};text-transform:uppercase;letter-spacing:0.8px;">Order Number</p>
+          <p style="margin:4px 0 0;font-size:20px;font-weight:800;color:${BK};letter-spacing:1px;">#${data.orderNumber}</p>
+        </div>
+      </td>
+    </tr>
+
+    <tr>
+      <td style="padding:0 40px 24px;">
+        <h3 style="margin:0 0 16px;font-size:13px;font-weight:700;color:${BK};text-transform:uppercase;letter-spacing:0.8px;">What you ordered</h3>
+        ${itemsTable(data.items)}
+        ${totalsBlock(data)}
+      </td>
+    </tr>
+
+    <tr>
+      <td style="padding:0 40px 40px;">
+        <div style="background:${Y};border-radius:10px;padding:24px;text-align:center;">
+          <h3 style="margin:0 0 8px;font-size:15px;font-weight:800;color:${BK};">Come back soon 🛍️</h3>
+          <p style="margin:0 0 16px;font-size:13px;color:${BK};">New arrivals drop regularly. Don't miss out.</p>
+          <a href="${SITE}" style="display:inline-block;background:${BK};color:#fff;font-size:13px;font-weight:700;padding:12px 28px;border-radius:8px;text-decoration:none;letter-spacing:0.3px;">
+            Shop New Arrivals
+          </a>
+        </div>
+      </td>
+    </tr>`
+
+  return { subject, html: baseLayout("Order Complete — Favorite Things Lifestyle", `Thank you! Order #${data.orderNumber} is complete.`, body) }
 }

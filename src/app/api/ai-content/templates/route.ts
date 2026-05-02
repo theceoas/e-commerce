@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase-admin"
+import { CLIENT_ID } from "@/lib/config"
 
 export async function GET() {
   const { data, error } = await supabaseAdmin
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest) {
 
   const { data, error } = await supabaseAdmin
     .from("ai_content_templates")
-    .insert({ name, reference_image_url, description })
+    .insert({ client_id: CLIENT_ID, name, reference_image_url, description })
     .select()
     .single()
 

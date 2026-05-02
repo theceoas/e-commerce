@@ -1,4 +1,5 @@
 import { createClient } from '@/utils/supabase/client'
+import { CLIENT_ID } from './config'
 
 const supabase = createClient()
 
@@ -211,6 +212,7 @@ export async function recordPromotionUsage(
     const { error: usageError } = await supabase
       .from('promotion_usage')
       .insert([{
+        client_id: CLIENT_ID,
         promotion_id: promotionId,
         user_id: userId,
         order_id: orderId,

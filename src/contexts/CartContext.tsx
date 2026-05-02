@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client'
+import { CLIENT_ID } from '@/lib/config'
 
 const supabase = createClient();
 import { useAuth } from './AuthContext';
@@ -171,6 +172,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
       // Add new item
       const cartData: any = {
+        client_id: CLIENT_ID,
         product_id: productId,
         quantity,
         size,

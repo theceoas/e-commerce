@@ -17,7 +17,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Star,
-  Sparkles
+  Sparkles,
+  CreditCard
 } from "lucide-react"
 
 interface AdminSidebarProps {
@@ -110,6 +111,13 @@ export default function AdminSidebar({
       icon: Sparkles,
       description: "Generate images & videos",
       route: "/admin/ai-content"
+    },
+    {
+      id: "billing",
+      label: "Credits & Billing",
+      icon: CreditCard,
+      description: "Buy AI generation credits",
+      route: "/admin/billing"
     }
   ]
 

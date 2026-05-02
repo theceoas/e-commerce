@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/utils/supabase/client'
+import { CLIENT_ID } from '@/lib/config'
 
 const supabase = createClient();
 import { Button } from '@/components/ui/button';
@@ -53,6 +54,11 @@ export default function AdminSettingsPage() {
     url: '',
     is_active: true
   });
+
+  // Password change state
+  const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' });
+  const [pwStatus, setPwStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [pwError, setPwError] = useState('');
 
   // New shipping zone form state
   const [newShippingZone, setNewShippingZone] = useState<ShippingZone>({
@@ -222,7 +228,7 @@ export default function AdminSettingsPage() {
 
       const { data, error } = await supabase
         .from('shipping_zones')
-        .insert([newShippingZone])
+        .insert([{ ...newShippingZone, client_id: CLIENT_ID }])
         .select()
         .single();
 
@@ -429,6 +435,30 @@ export default function AdminSettingsPage() {
     }
   };
 
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPwError('');
+    if (pwForm.next !== pwForm.confirm) {
+      setPwError('New passwords do not match.');
+      return;
+    }
+    if (pwForm.next.length < 8) {
+      setPwError('Password must be at least 8 characters.');
+      return;
+    }
+    setPwStatus('loading');
+    const { error } = await supabase.auth.updateUser({ password: pwForm.next });
+    if (error) {
+      setPwError(error.message);
+      setPwStatus('error');
+    } else {
+      setPwStatus('success');
+      setPwForm({ current: '', next: '', confirm: '' });
+      toast.success('Password updated successfully');
+      setTimeout(() => setPwStatus('idle'), 3000);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -445,9 +475,10 @@ export default function AdminSettingsPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="webhooks" className="text-sm">Webhooks</TabsTrigger>
           <TabsTrigger value="shipping" className="text-sm">Shipping Zones</TabsTrigger>
+          <TabsTrigger value="account" className="text-sm">Account</TabsTrigger>
         </TabsList>
 
         <TabsContent value="webhooks" className="space-y-6">
@@ -670,6 +701,46 @@ export default function AdminSettingsPage() {
                   ))}
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="account" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Change Password</CardTitle>
+              <CardDescription>Update the password for your admin account</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handlePasswordChange} className="space-y-4 max-w-md">
+                <div className="space-y-2">
+                  <Label htmlFor="pw-new">New password</Label>
+                  <Input
+                    id="pw-new"
+                    type="password"
+                    value={pwForm.next}
+                    onChange={(e) => setPwForm(f => ({ ...f, next: e.target.value }))}
+                    required
+                    minLength={8}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="pw-confirm">Confirm new password</Label>
+                  <Input
+                    id="pw-confirm"
+                    type="password"
+                    value={pwForm.confirm}
+                    onChange={(e) => setPwForm(f => ({ ...f, confirm: e.target.value }))}
+                    required
+                  />
+                </div>
+                {pwError && (
+                  <p className="text-sm text-red-500">{pwError}</p>
+                )}
+                <Button type="submit" disabled={pwStatus === 'loading'}>
+                  {pwStatus === 'loading' ? 'Updating...' : 'Update password'}
+                </Button>
+              </form>
             </CardContent>
           </Card>
         </TabsContent>

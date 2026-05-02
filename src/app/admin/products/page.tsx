@@ -41,6 +41,7 @@ import {
   Star
 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
+import { CLIENT_ID } from "@/lib/config"
 import { uploadProductImages } from "@/lib/storage"
 import { toast, Toaster } from "sonner"
 import { withQueryTimeout } from '@/lib/query-timeout';
@@ -372,6 +373,7 @@ export default function ProductsManagement() {
       const autoInStock = hasStockInSizes;
 
       const productData = {
+        client_id: CLIENT_ID,
         name: formData.name,
         description: formData.description,
         price: parseFloat(formData.price),

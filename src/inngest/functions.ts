@@ -5,6 +5,7 @@ import {
   orderConfirmationEmail,
   outForDeliveryEmail,
   deliveredEmail,
+  orderCompletedEmail,
 } from "@/lib/email-templates"
 
 const KIE_API_KEY = process.env.KIE_AI_API_KEY!
@@ -42,16 +43,53 @@ async function fetchOrderForEmail(orderId: string) {
   return data
 }
 
+// ── Credits refund helper ─────────────────────────────────────────────────────
+
+const CREDITS_PER_JOB = 30
+
+async function refundCredit(clientId: string, jobId: string) {
+  const { data: client } = await supabaseAdmin
+    .from("clients")
+    .select("credits_balance")
+    .eq("id", clientId)
+    .single()
+  if (!client) return
+  const newBalance = (client.credits_balance ?? 0) + CREDITS_PER_JOB
+  await supabaseAdmin
+    .from("clients")
+    .update({ credits_balance: newBalance, updated_at: new Date().toISOString() })
+    .eq("id", clientId)
+  await supabaseAdmin.from("credit_transactions").insert({
+    client_id: clientId,
+    type: "refund",
+    amount: CREDITS_PER_JOB,
+    balance_after: newBalance,
+    description: `Refund — generation failed (job ${jobId})`,
+  })
+}
+
 // ── 1. Image generation (nano-banana-pro) ────────────────────────────────────
 
 export const generateImage = inngest.createFunction(
   { id: "generate-image", retries: 1, triggers: [{ event: "ai-content/image.requested" }] },
   async ({ event, step }) => {
-    const { jobId, prompt, inputImageUrls } = event.data as {
+    const { jobId, prompt, inputImageUrls, clientId } = event.data as {
       jobId: string
       prompt: string
       inputImageUrls: string[]
+      clientId: string
     }
+
+    // Verify client is active before spending compute
+    await step.run("verify-client", async () => {
+      const { data: client } = await supabaseAdmin
+        .from("clients")
+        .select("id, status")
+        .eq("id", clientId)
+        .single()
+      if (!client) throw new Error("Client not found")
+      if (client.status === "suspended") throw new Error("Client account suspended")
+    })
 
     const taskId = await step.run("create-image-task", async () => {
       const res = await fetch(`${KIE_BASE}/api/v1/jobs/createTask`, {
@@ -106,20 +144,25 @@ export const generateImage = inngest.createFunction(
       }
 
       if (state.state === "fail") {
-        await step.run("save-failure", async () => {
+        await step.run("save-failure-refund", async () => {
           await supabaseAdmin
             .from("ai_content_jobs")
             .update({ status: "failed", error_msg: state.failMsg || "Generation failed" })
             .eq("id", jobId)
+          await refundCredit(clientId, jobId)
         })
         return { status: "failed" }
       }
     }
 
-    await supabaseAdmin
-      .from("ai_content_jobs")
-      .update({ status: "failed", error_msg: "Timed out waiting for result" })
-      .eq("id", jobId)
+    // Timed out
+    await step.run("save-timeout-refund", async () => {
+      await supabaseAdmin
+        .from("ai_content_jobs")
+        .update({ status: "failed", error_msg: "Timed out waiting for result" })
+        .eq("id", jobId)
+      await refundCredit(clientId, jobId)
+    })
 
     return { status: "timeout" }
   }
@@ -181,7 +224,7 @@ export const sendOrderStatusEmail = inngest.createFunction(
     }
 
     // Only act on statuses we care about
-    if (newStatus !== "shipped" && newStatus !== "delivered") {
+    if (newStatus !== "shipped" && newStatus !== "delivered" && newStatus !== "completed") {
       return { skipped: true, reason: `Status ${newStatus} does not trigger email` }
     }
 
@@ -207,7 +250,9 @@ export const sendOrderStatusEmail = inngest.createFunction(
         shippingAddress: order.shipping_address || {},
       }
 
-      const emailFn = newStatus === "shipped" ? outForDeliveryEmail : deliveredEmail
+      const emailFn = newStatus === "shipped" ? outForDeliveryEmail
+        : newStatus === "completed" ? orderCompletedEmail
+        : deliveredEmail
       const { subject, html } = emailFn(emailData)
 
       const { error } = await resend.emails.send({ from: FROM, to: customerEmail, subject, html })

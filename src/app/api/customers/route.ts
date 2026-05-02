@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
+import { CLIENT_ID } from '@/lib/config';
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
@@ -205,6 +206,7 @@ export async function POST(request: NextRequest) {
     const { data: newCustomer, error } = await supabase
       .from('profiles')
       .insert({
+        client_id: CLIENT_ID,
         email,
         first_name,
         last_name,

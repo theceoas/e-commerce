@@ -30,12 +30,11 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client'
+import { CLIENT_ID } from '@/lib/config'
 
 const supabase = createClient();
 import { toast } from 'sonner';
-import { reduceStock, checkStockAvailability } from '@/lib/inventory';
-import { recordPromotionUsage } from '@/lib/promotions';
-import { generateUniqueOrderNumber } from '@/lib/order-utils';
+import { checkStockAvailability } from '@/lib/inventory';
 import dynamic from 'next/dynamic';
 
 // Dynamically import PaystackButton to avoid SSR issues
@@ -218,7 +217,7 @@ export default function CheckoutPage() {
   };
 
   const validateForm = () => {
-    const required = ['email', 'firstName', 'lastName', 'address1', 'city', 'state', 'postalCode', 'phone', 'shippingZoneId'];
+    const required = ['email', 'firstName', 'lastName', 'address1', 'city', 'state', 'phone', 'shippingZoneId'];
 
     for (const field of required) {
       if (!form[field as keyof CheckoutForm]) {
@@ -303,7 +302,7 @@ export default function CheckoutPage() {
   }, [form, items, selectedShippingZone, getFinalTotal]);
 
   const validateFormSilently = () => {
-    const required = ['email', 'firstName', 'lastName', 'address1', 'city', 'state', 'postalCode', 'phone', 'shippingZoneId'];
+    const required = ['email', 'firstName', 'lastName', 'address1', 'city', 'state', 'phone', 'shippingZoneId'];
 
     for (const field of required) {
       if (!form[field as keyof CheckoutForm]) {
@@ -383,7 +382,7 @@ export default function CheckoutPage() {
         userId = newUser?.id;
       }
 
-      toast.loading('Generating order number...');
+      toast.loading('Finalizing order...');
 
       // Calculate total with shipping
       const shippingCost = selectedShippingZone?.price || 0;
@@ -391,102 +390,59 @@ export default function CheckoutPage() {
       const discountAmount = getDiscountAmount();
       const totalWithShipping = subtotalAmount - discountAmount + shippingCost;
 
-      // Generate unique order number
-      const orderNumber = await generateUniqueOrderNumber();
-
-      toast.loading('Finalizing order...');
-
-      // Verify we have an active session before trying to use userId
-      // This prevents RLS errors where we have a userId but auth.uid() is null
+      // Determine user/guest identity
       const { data: { session } } = await supabase.auth.getSession();
-      const activeUserId = session?.user?.id;
-
-      // If we don't have an active session, we MUST save as guest (guest_email)
-      // even if we just created an account. The account page will link it by email later.
-      const finalUserId = activeUserId || null;
+      const activeUserId = session?.user?.id || null;
       const finalGuestEmail = activeUserId ? null : form.email;
 
-      // Create order with paid status since payment was successful
-      const orderData = {
-        user_id: finalUserId,
-        guest_email: finalGuestEmail,
-        subtotal: subtotalAmount,
-        total_amount: totalWithShipping,
-        shipping_address: {
-          first_name: form.firstName,
-          last_name: form.lastName,
-          company: form.company,
-          address_line_1: form.address1,
-          address_line_2: form.address2,
-          city: form.city,
-          state: form.state,
-          postal_code: form.postalCode,
-          country: form.country,
-          phone: form.phone
-        },
-        shipping_zone_id: form.shippingZoneId,
-        shipping_cost: shippingCost,
-        payment_status: 'paid',
-        payment_reference: reference.reference,
-        status: 'pending',
-        order_number: orderNumber
-      };
-
-      const { data: order, error: orderError } = await supabase
-        .from('orders')
-        .insert(orderData)
-        .select()
-        .single();
-
-      if (orderError) throw orderError;
-
-      // Create order items
-      const orderItems = items.map(item => {
-        // Use size-specific price if available (for MiniMe products), otherwise use product price
-        const basePrice = (item as any).size_price !== undefined && (item as any).size_price !== null
-          ? (item as any).size_price
-          : (item.product?.price || 0);
-
-        const effectivePrice = item.product?.has_active_discount && item.product?.discounted_price
-          ? item.product.discounted_price
-          : basePrice;
-
-        return {
-          order_id: order.id,
-          product_id: item.product_id,
-          quantity: item.quantity,
-          size: item.size,
-          price: basePrice, // Store the base price (size-specific or product price)
-          unit_price: effectivePrice, // Store the effective price (after discount)
-          total_price: effectivePrice * item.quantity
-        };
+      // Create order via server-side API (bypasses RLS for both guests and logged-in users)
+      const createRes = await fetch('/api/orders/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderData: {
+            user_id: activeUserId,
+            guest_email: finalGuestEmail,
+            subtotal: subtotalAmount,
+            total_amount: totalWithShipping,
+            shipping_address: {
+              first_name: form.firstName,
+              last_name: form.lastName,
+              company: form.company,
+              address_line_1: form.address1,
+              address_line_2: form.address2,
+              city: form.city,
+              state: form.state,
+              postal_code: form.postalCode,
+              country: form.country,
+              phone: form.phone,
+            },
+            shipping_zone_id: form.shippingZoneId,
+            shipping_cost: shippingCost,
+            payment_status: 'paid',
+            payment_reference: reference.reference,
+            status: 'pending',
+          },
+          items: items.map(item => ({
+            product_id: item.product_id,
+            quantity: item.quantity,
+            size: item.size,
+            size_price: (item as any).size_price ?? null,
+            product: item.product ? {
+              price: item.product.price,
+              has_active_discount: (item.product as any).has_active_discount,
+              discounted_price: (item.product as any).discounted_price,
+            } : undefined,
+          })),
+          appliedPromotion: appliedPromotion || null,
+          discountAmount,
+        }),
       });
 
-      const { error: itemsError } = await supabase
-        .from('order_items')
-        .insert(orderItems);
+      const createResult = await createRes.json();
+      if (!createRes.ok) throw new Error(createResult.error || 'Failed to create order');
 
-      if (itemsError) throw itemsError;
-      // Reduce stock for ordered items
-      await reduceStock(items, order.id);
-
-      // Record promotion usage if a promotion was applied
-      if (appliedPromotion && userId) {
-        try {
-          const promotionUsageRecorded = await recordPromotionUsage(
-            appliedPromotion.promotionId,
-            userId,
-            order.id,
-            discountAmount
-          );
-
-          if (!promotionUsageRecorded) {
-            console.error('Failed to record promotion usage');
-          }
-        } catch (promotionError) {
-          console.error('Error recording promotion usage:', promotionError);
-        }
-      }
+      const order = { id: createResult.orderId, order_number: createResult.orderNumber };
 
       // Save address if user is logged in, it's a new address, and they chose to save it
       if (userId && !selectedAddressId && form.saveAddress) {
@@ -494,6 +450,7 @@ export default function CheckoutPage() {
           const { error: addressError } = await supabase
             .from('addresses')
             .insert({
+              client_id: CLIENT_ID,
               user_id: userId,
               type: 'Shipping',
               first_name: form.firstName,
@@ -810,7 +767,7 @@ export default function CheckoutPage() {
                       />
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <Label htmlFor="city" className="text-sm">City</Label>
                         <Input
@@ -826,15 +783,6 @@ export default function CheckoutPage() {
                           id="state"
                           value={form.state}
                           onChange={(e) => handleInputChange('state', e.target.value)}
-                          required
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="postalCode" className="text-sm">Postal Code</Label>
-                        <Input
-                          id="postalCode"
-                          value={form.postalCode}
-                          onChange={(e) => handleInputChange('postalCode', e.target.value)}
                           required
                         />
                       </div>

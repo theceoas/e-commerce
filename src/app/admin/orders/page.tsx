@@ -213,58 +213,27 @@ export default function AdminOrdersPage() {
 
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
     try {
-      // First, get the current order to understand its structure
-      const { data: currentOrder, error: fetchError } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('id', orderId)
-        .single();
+      const res = await fetch('/api/admin/orders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, newStatus }),
+      });
 
-      if (fetchError) {
-        console.error('Error fetching current order:', fetchError);
-        throw fetchError;
-      }
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Update failed');
 
-      const updateData: any = {
-        status: newStatus,
-        updated_at: new Date().toISOString()
-      };
+      // Optimistic local update — no full reload needed
+      setOrders(prev => prev.map(o =>
+        o.id === orderId
+          ? { ...o, status: newStatus, ...(newStatus === 'completed' ? { payment_status: 'paid' } : {}) }
+          : o
+      ));
 
-      // If status is completed, automatically mark as paid
-      if (newStatus === 'completed') {
-        updateData.payment_status = 'paid';
-      }
-
-      // Ensure the constraint is satisfied by preserving the current user identification
-      if (currentOrder.user_id && !currentOrder.guest_email) {
-        // This is a user order, ensure guest_email stays null
-        updateData.guest_email = null;
-      } else if (!currentOrder.user_id && currentOrder.guest_email) {
-        // This is a guest order, ensure user_id stays null
-        updateData.user_id = null;
-      } else {
-        // Handle edge case where constraint might be violated
-        console.warn('Order has invalid user identification, fixing...');
-        if (currentOrder.guest_email) {
-          updateData.user_id = null;
-        } else {
-          // If no guest_email, this might be an old order, keep as is but log
-          console.warn('Order has no proper user identification');
-        }
-      }
-
-      const { error } = await supabase
-        .from('orders')
-        .update(updateData)
-        .eq('id', orderId);
-
-      if (error) {
-        console.error('Database error:', error);
-        throw error;
-      }
+      toast.success('Order status updated');
 
       // Fire status change event to Inngest (non-blocking)
-      const customerEmail = currentOrder.guest_email || null;
+      const order = orders.find(o => o.id === orderId);
+      const customerEmail = order?.guest_email || null;
       if (customerEmail) {
         fetch('/api/events', {
           method: 'POST',
@@ -274,18 +243,13 @@ export default function AdminOrdersPage() {
             data: {
               orderId,
               newStatus,
-              previousStatus: currentOrder.status,
+              previousStatus: result.previousStatus,
               customerEmail,
-              customerName: currentOrder.shipping_address?.first_name || 'there',
+              customerName: order?.shipping_address?.full_name || 'there',
             }
           }),
-        }).catch(() => {/* non-blocking */});
+        }).catch(() => {});
       }
-
-      toast.success('Order status updated successfully');
-
-      // Refresh orders list
-      loadOrders();
     } catch (error) {
       console.error('Error updating order status:', error);
       toast.error('Failed to update order status. Please try again.');
@@ -382,7 +346,7 @@ export default function AdminOrdersPage() {
     }, {} as Record<string, Order[]>);
 
     // Sort groups by status priority
-    const statusOrder = ['pending', 'processing', 'shipped', 'completed', 'cancelled'];
+    const statusOrder = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'completed', 'cancelled'];
     const sortedGroups: Record<string, Order[]> = {};
 
     statusOrder.forEach(status => {
@@ -404,9 +368,11 @@ export default function AdminOrdersPage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'processing': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'confirmed': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'processing': return 'bg-indigo-100 text-indigo-800 border-indigo-200';
       case 'shipped': return 'bg-purple-100 text-purple-800 border-purple-200';
-      case 'completed': return 'bg-green-100 text-green-800 border-green-200';
+      case 'delivered': return 'bg-green-100 text-green-800 border-green-200';
+      case 'completed': return 'bg-emerald-100 text-emerald-800 border-emerald-200';
       case 'cancelled': return 'bg-red-100 text-red-800 border-red-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
@@ -518,8 +484,10 @@ export default function AdminOrdersPage() {
               >
                 <option value="all">All Statuses</option>
                 <option value="pending">Pending</option>
+                <option value="confirmed">Confirmed</option>
                 <option value="processing">Processing</option>
                 <option value="shipped">Shipped</option>
+                <option value="delivered">Delivered</option>
                 <option value="completed">Completed</option>
                 <option value="cancelled">Cancelled</option>
               </select>
@@ -619,7 +587,24 @@ export default function AdminOrdersPage() {
                                     </div>
                                     <div>
                                       <div className="font-medium text-gray-900">#{order.order_number}</div>
-                                      <div className="text-sm text-gray-500">{order.order_items.length} items</div>
+                                      <div className="flex items-center gap-1 mt-1">
+                                        {order.order_items.slice(0, 3).map((item) => (
+                                          <div key={item.id} className="w-7 h-7 rounded overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-200">
+                                            {item.products.thumbnail_url ? (
+                                              <Image src={item.products.thumbnail_url} alt={item.products.name} width={28} height={28} className="w-full h-full object-cover" />
+                                            ) : (
+                                              <div className="w-full h-full flex items-center justify-center">
+                                                <Package className="w-3 h-3 text-gray-400" />
+                                              </div>
+                                            )}
+                                          </div>
+                                        ))}
+                                        {order.order_items.length > 3 && (
+                                          <div className="w-7 h-7 rounded bg-gray-200 flex items-center justify-center text-xs text-gray-600 font-medium">
+                                            +{order.order_items.length - 3}
+                                          </div>
+                                        )}
+                                      </div>
                                     </div>
                                   </div>
                                 </td>
@@ -781,7 +766,24 @@ export default function AdminOrdersPage() {
                                 </div>
                                 <div>
                                   <div className="font-medium text-gray-900 text-sm">#{order.order_number}</div>
-                                  <div className="text-xs text-gray-500">{order.order_items.length} items</div>
+                                  <div className="flex items-center gap-1 mt-1">
+                                    {order.order_items.slice(0, 3).map((item) => (
+                                      <div key={item.id} className="w-6 h-6 rounded overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-200">
+                                        {item.products.thumbnail_url ? (
+                                          <Image src={item.products.thumbnail_url} alt={item.products.name} width={24} height={24} className="w-full h-full object-cover" />
+                                        ) : (
+                                          <div className="w-full h-full flex items-center justify-center">
+                                            <Package className="w-2 h-2 text-gray-400" />
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))}
+                                    {order.order_items.length > 3 && (
+                                      <div className="w-6 h-6 rounded bg-gray-200 flex items-center justify-center text-xs text-gray-600 font-medium">
+                                        +{order.order_items.length - 3}
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                               <div className="text-right">
@@ -809,8 +811,10 @@ export default function AdminOrdersPage() {
                               onClick={(e) => e.stopPropagation()}
                             >
                               <option value="pending">Pending</option>
+                              <option value="confirmed">Confirmed</option>
                               <option value="processing">Processing</option>
                               <option value="shipped">Shipped</option>
+                              <option value="delivered">Delivered</option>
                               <option value="completed">Completed</option>
                               <option value="cancelled">Cancelled</option>
                             </select>
@@ -955,7 +959,24 @@ export default function AdminOrdersPage() {
                             </div>
                             <div>
                               <div className="font-medium text-gray-900">#{order.order_number}</div>
-                              <div className="text-sm text-gray-500">{order.order_items.length} items</div>
+                              <div className="flex items-center gap-1 mt-1">
+                                {order.order_items.slice(0, 3).map((item) => (
+                                  <div key={item.id} className="w-7 h-7 rounded overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-200">
+                                    {item.products.thumbnail_url ? (
+                                      <Image src={item.products.thumbnail_url} alt={item.products.name} width={28} height={28} className="w-full h-full object-cover" />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center">
+                                        <Package className="w-3 h-3 text-gray-400" />
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                                {order.order_items.length > 3 && (
+                                  <div className="w-7 h-7 rounded bg-gray-200 flex items-center justify-center text-xs text-gray-600 font-medium">
+                                    +{order.order_items.length - 3}
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </td>
@@ -981,8 +1002,10 @@ export default function AdminOrdersPage() {
                             onClick={(e) => e.stopPropagation()}
                           >
                             <option value="pending">Pending</option>
+                            <option value="confirmed">Confirmed</option>
                             <option value="processing">Processing</option>
                             <option value="shipped">Shipped</option>
+                            <option value="delivered">Delivered</option>
                             <option value="completed">Completed</option>
                             <option value="cancelled">Cancelled</option>
                           </select>

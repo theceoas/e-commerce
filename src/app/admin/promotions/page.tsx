@@ -15,6 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { CalendarIcon, Plus, Edit, Trash2, Copy, Eye, EyeOff, Send, Check, X } from 'lucide-react'
 import { format } from 'date-fns'
 import { createClient } from '@/utils/supabase/client'
+import { CLIENT_ID } from '@/lib/config'
 
 const supabase = createClient()
 import { toast } from 'sonner'
@@ -187,6 +188,7 @@ export default function PromotionsManagement() {
 
     try {
       const promotionData = {
+        client_id: CLIENT_ID,
         code: formData.code.toUpperCase(),
         name: formData.name,
         description: formData.description || null,

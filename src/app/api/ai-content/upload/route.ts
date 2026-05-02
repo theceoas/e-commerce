@@ -15,7 +15,12 @@ export async function POST(req: NextRequest) {
     if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 })
 
     if (type === "template") {
-      // Permanent Supabase storage for template reference images
+      // Ensure bucket exists
+      const { error: bucketErr } = await supabaseAdmin.storage.createBucket("brand-images", { public: true })
+      if (bucketErr && !bucketErr.message.includes("already exists")) {
+        return NextResponse.json({ error: "Bucket error: " + bucketErr.message }, { status: 500 })
+      }
+
       const ext = file.name.split(".").pop()
       const fileName = `ai-content/templates/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
       const { data, error } = await supabaseAdmin.storage

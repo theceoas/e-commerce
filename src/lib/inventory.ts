@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { CLIENT_ID } from './config';
 
 interface InventoryHistoryEntry {
   product_id: string;
@@ -166,7 +167,7 @@ async function logInventoryHistory(entry: InventoryHistoryEntry): Promise<{ erro
   try {
     const { error } = await supabase
       .from('inventory_history')
-      .insert(entry);
+      .insert({ ...entry, client_id: CLIENT_ID });
 
     if (error) {
       console.error('Error logging inventory history:', error);
