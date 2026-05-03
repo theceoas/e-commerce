@@ -30,6 +30,8 @@ interface Template {
 
 interface AIJob {
   id: string
+  type?: "image" | "angle"
+  parent_job_id?: string | null
   prompt: string
   input_image_urls: string[]
   task_id: string | null
@@ -445,6 +447,182 @@ function CollageGroupCard({ jobs, onDelete, onDownload }: {
   )
 }
 
+// ── Job detail modal (angles) ─────────────────────────────────────────────────
+const ANGLE_LABELS = ["Front", "Side", "Back", "Detail"]
+
+function JobDetailModal({ job, onClose, onDeleteJob, refreshCredits }: {
+  job: AIJob
+  onClose: () => void
+  onDeleteJob: (id: string) => void
+  refreshCredits: () => void
+}) {
+  const [angleJobs, setAngleJobs] = useState<AIJob[]>([])
+  const [selectedCount, setSelectedCount] = useState(1)
+  const [generating, setGenerating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const modalPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const fetchAngles = useCallback(async () => {
+    const res = await fetch(`/api/ai-content/jobs?parentId=${job.id}`)
+    if (res.ok) setAngleJobs(await res.json())
+  }, [job.id])
+
+  useEffect(() => { fetchAngles() }, [fetchAngles])
+
+  useEffect(() => {
+    const hasActive = angleJobs.some(j => j.status === "pending" || j.status === "processing")
+    if (hasActive && !modalPollRef.current) {
+      modalPollRef.current = setInterval(fetchAngles, 6000)
+    } else if (!hasActive && modalPollRef.current) {
+      clearInterval(modalPollRef.current); modalPollRef.current = null
+    }
+    return () => { if (modalPollRef.current) { clearInterval(modalPollRef.current); modalPollRef.current = null } }
+  }, [angleJobs, fetchAngles])
+
+  const handleGenerateAngles = async () => {
+    setGenerating(true); setError(null)
+    try {
+      const res = await fetch("/api/ai-content/angles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId: job.id, count: selectedCount }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Failed")
+      await fetchAngles()
+      refreshCredits()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed")
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const cfg = STATUS_CFG[job.status]
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 sticky top-0 bg-white z-10">
+          <div className="flex items-center gap-2">
+            <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full ${cfg.color}`}>
+              {cfg.spin && <Loader2 className="w-2 h-2 animate-spin" />}{cfg.label}
+            </span>
+            {job.dress_length && <span className="text-xs text-gray-500 capitalize">{job.dress_length}</span>}
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100"><X className="w-4 h-4" /></button>
+        </div>
+
+        <div className="p-4 space-y-4">
+          <div className="flex gap-3">
+            <div className="w-36 shrink-0">
+              <div className="aspect-[2/3] rounded-xl overflow-hidden bg-gray-100 border border-gray-100">
+                {job.status === "success" && job.result_urls[0] ? (
+                  <img src={job.result_urls[0]} alt="" className="w-full h-full object-contain" />
+                ) : job.status === "processing" || job.status === "pending" ? (
+                  <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+                    <Loader2 className="w-6 h-6 text-[#FFDC00] animate-spin" />
+                    <p className="text-[10px] text-gray-400">Generating...</p>
+                  </div>
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center"><XCircle className="w-6 h-6 text-red-300" /></div>
+                )}
+              </div>
+            </div>
+            <div className="flex-1 space-y-2 min-w-0">
+              <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">Input images</p>
+              <div className="grid grid-cols-3 gap-1.5">
+                {(job.input_image_urls || []).slice(0, 6).map((url, i) => (
+                  <div key={i} className="aspect-[2/3] rounded-lg overflow-hidden bg-gray-100 border border-gray-100">
+                    <img src={url} alt="" className="w-full h-full object-contain" />
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-1.5 flex-wrap mt-2">
+                {job.status === "success" && job.result_urls[0] && (
+                  <button onClick={() => { const a = document.createElement("a"); a.href = job.result_urls[0]; a.download = `gen-${job.id}.jpg`; a.click() }}
+                    className="flex items-center gap-1 text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 hover:bg-gray-100">
+                    <Download className="w-3 h-3" />Download
+                  </button>
+                )}
+                <button onClick={() => { onDeleteJob(job.id); onClose() }}
+                  className="flex items-center gap-1 text-xs text-red-400 bg-red-50 border border-red-100 rounded-lg px-2.5 py-1.5 hover:bg-red-100">
+                  <Trash2 className="w-3 h-3" />Delete
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {job.status === "success" && (
+            <div className="border-t border-gray-100 pt-4">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="text-xs font-semibold text-gray-800">Generate Angles</p>
+                  <p className="text-[10px] text-gray-400">Different poses and views — 10 credits each</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setSelectedCount(c => Math.max(1, c - 1))}
+                    className="w-7 h-7 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 flex items-center justify-center text-sm font-medium">−</button>
+                  <span className="text-sm font-bold text-black w-4 text-center">{selectedCount}</span>
+                  <button onClick={() => setSelectedCount(c => Math.min(4, c + 1))}
+                    className="w-7 h-7 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 flex items-center justify-center text-sm font-medium">+</button>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-1.5 mb-3">
+                {ANGLE_LABELS.slice(0, selectedCount).map(l => (
+                  <span key={l} className="text-[10px] bg-[#FFDC00]/20 text-yellow-800 px-2 py-0.5 rounded-full font-medium">{l}</span>
+                ))}
+              </div>
+              {error && <p className="text-xs text-red-500 mb-2">{error}</p>}
+              <button onClick={handleGenerateAngles} disabled={generating}
+                className="w-full bg-[#FFDC00] hover:bg-[#FFDC00]/90 text-black text-xs font-semibold py-2.5 rounded-xl disabled:opacity-50 flex items-center justify-center gap-2">
+                {generating
+                  ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Sending...</>
+                  : <><Sparkles className="w-3.5 h-3.5" />Generate {selectedCount} angle{selectedCount > 1 ? "s" : ""} — {selectedCount * 10} credits</>
+                }
+              </button>
+            </div>
+          )}
+
+          {angleJobs.length > 0 && (
+            <div className="border-t border-gray-100 pt-4">
+              <p className="text-xs font-semibold text-gray-800 mb-3">Angle Variations</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {angleJobs.map((aj, i) => {
+                  const acfg = STATUS_CFG[aj.status]
+                  return (
+                    <div key={aj.id} className="space-y-1">
+                      <div className="aspect-[2/3] rounded-lg overflow-hidden bg-gray-100 border border-gray-100">
+                        {aj.status === "success" && aj.result_urls[0] ? (
+                          <img src={aj.result_urls[0]} alt="" className="w-full h-full object-contain" />
+                        ) : aj.status === "processing" || aj.status === "pending" ? (
+                          <div className="w-full h-full flex items-center justify-center"><Loader2 className="w-5 h-5 text-[#FFDC00] animate-spin" /></div>
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center"><XCircle className="w-5 h-5 text-red-300" /></div>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-gray-500">{ANGLE_LABELS[i] ?? `Angle ${i + 1}`}</span>
+                        <span className={`text-[9px] font-medium px-1 py-0.5 rounded-full ${acfg.color}`}>{acfg.label}</span>
+                      </div>
+                      {aj.status === "success" && aj.result_urls[0] && (
+                        <button onClick={() => { const a = document.createElement("a"); a.href = aj.result_urls[0]; a.download = `angle-${i + 1}-${aj.id}.jpg`; a.click() }}
+                          className="w-full text-[10px] text-gray-500 bg-gray-50 border border-gray-200 rounded-lg py-1 hover:bg-gray-100 flex items-center justify-center gap-1">
+                          <Download className="w-2.5 h-2.5" />Save
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function AIContentPage() {
   const [activeTab, setActiveTab] = useState<"generate" | "templates" | "history">("generate")
@@ -463,6 +641,7 @@ export default function AIContentPage() {
     const cached = localStorage.getItem("ft_credits_balance")
     return cached !== null ? Number(cached) : null
   })
+  const [selectedJob, setSelectedJob] = useState<AIJob | null>(null)
   const addlImgRef = useRef<HTMLInputElement>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const prevJobsRef = useRef<AIJob[]>([])
@@ -886,7 +1065,7 @@ export default function AIContentPage() {
                 {standaloneJobs.map(job => {
                   const cfg = STATUS_CFG[job.status]
                   return (
-                    <div key={job.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden group">
+                    <div key={job.id} onClick={() => setSelectedJob(job)} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden group cursor-pointer hover:shadow-md hover:border-gray-200 transition-all">
                       <div className="relative bg-gray-100 aspect-[9/16]">
                         {job.status === "success" && job.result_urls[0] ? (
                           <img src={job.result_urls[0]} alt="" className="w-full h-full object-contain" />
@@ -902,10 +1081,10 @@ export default function AIContentPage() {
                         )}
                         <div className="absolute top-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           {job.status === "success" && job.result_urls[0] && (
-                            <button onClick={() => handleDownload(job.result_urls[0], job.id)}
+                            <button onClick={e => { e.stopPropagation(); handleDownload(job.result_urls[0], job.id) }}
                               className="bg-black/60 text-white rounded-full p-1 hover:bg-black/80"><Download className="w-2.5 h-2.5" /></button>
                           )}
-                          <button onClick={() => deleteJob(job.id)}
+                          <button onClick={e => { e.stopPropagation(); deleteJob(job.id) }}
                             className="bg-black/60 text-white rounded-full p-1 hover:bg-red-500/80"><Trash2 className="w-2.5 h-2.5" /></button>
                         </div>
                       </div>
@@ -929,6 +1108,15 @@ export default function AIContentPage() {
           </div>
         )}
       </div>
+
+      {selectedJob && (
+        <JobDetailModal
+          job={selectedJob}
+          onClose={() => setSelectedJob(null)}
+          onDeleteJob={id => { deleteJob(id); setSelectedJob(null) }}
+          refreshCredits={fetchCredits}
+        />
+      )}
     </div>
   )
 }

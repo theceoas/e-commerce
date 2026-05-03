@@ -46,15 +46,16 @@ async function fetchOrderForEmail(orderId: string) {
 // ── Credits refund helper ─────────────────────────────────────────────────────
 
 const CREDITS_PER_JOB = 30
+const CREDITS_PER_ANGLE = 10
 
-async function refundCredit(clientId: string, jobId: string) {
+async function refundCredit(clientId: string, jobId: string, amount = CREDITS_PER_JOB) {
   const { data: client } = await supabaseAdmin
     .from("clients")
     .select("credits_balance")
     .eq("id", clientId)
     .single()
   if (!client) return
-  const newBalance = (client.credits_balance ?? 0) + CREDITS_PER_JOB
+  const newBalance = (client.credits_balance ?? 0) + amount
   await supabaseAdmin
     .from("clients")
     .update({ credits_balance: newBalance, updated_at: new Date().toISOString() })
@@ -62,7 +63,7 @@ async function refundCredit(clientId: string, jobId: string) {
   await supabaseAdmin.from("credit_transactions").insert({
     client_id: clientId,
     type: "refund",
-    amount: CREDITS_PER_JOB,
+    amount,
     balance_after: newBalance,
     description: `Refund — generation failed (job ${jobId})`,
   })
@@ -260,5 +261,64 @@ export const sendOrderStatusEmail = inngest.createFunction(
     })
 
     return { sent: true, status: newStatus }
+  }
+)
+
+// ── Angle variations (nano-banana-2, 10 credits each) ────────────────────────
+
+export const generateAngles = inngest.createFunction(
+  { id: "ft-generate-angles", retries: 1, triggers: [{ event: "ft/angles.requested" }] },
+  async ({ event, step }) => {
+    const { jobId, prompt, inputImageUrls, clientId } = event.data as {
+      jobId: string; prompt: string; inputImageUrls: string[]; clientId: string
+    }
+
+    const taskId = await step.run("create-angle-task", async () => {
+      const res = await fetch(`${KIE_BASE}/api/v1/jobs/createTask`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${KIE_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "nano-banana-2",
+          input: { prompt, image_input: inputImageUrls, aspect_ratio: "2:3", resolution: "1K", output_format: "jpg" },
+        }),
+      })
+      const json = await res.json()
+      if (json.code !== 200) throw new Error(json.msg || "kie.ai task creation failed")
+      return json.data.taskId as string
+    })
+
+    await step.run("save-task-id", async () => {
+      await supabaseAdmin.from("ai_content_jobs").update({ task_id: taskId, status: "processing" }).eq("id", jobId)
+    })
+
+    for (let i = 0; i < 40; i++) {
+      await step.sleep(`angle-wait-${i}`, "20 seconds")
+      const state = await step.run(`angle-poll-${i}`, async () => {
+        const res = await fetch(`${KIE_BASE}/api/v1/jobs/recordInfo?taskId=${taskId}`, {
+          headers: { Authorization: `Bearer ${KIE_API_KEY}` },
+        })
+        return (await res.json()).data as { state: string; resultJson?: string; failMsg?: string }
+      })
+      if (state.state === "success") {
+        const resultUrls = JSON.parse(state.resultJson || "{}").resultUrls || []
+        await step.run("save-angle-success", async () => {
+          await supabaseAdmin.from("ai_content_jobs").update({ status: "success", result_urls: resultUrls }).eq("id", jobId)
+        })
+        return { status: "success", resultUrls }
+      }
+      if (state.state === "fail") {
+        await step.run("save-angle-failure", async () => {
+          await supabaseAdmin.from("ai_content_jobs").update({ status: "failed", error_msg: state.failMsg || "Failed" }).eq("id", jobId)
+          await refundCredit(clientId, jobId, CREDITS_PER_ANGLE)
+        })
+        return { status: "failed" }
+      }
+    }
+
+    await step.run("angle-timeout", async () => {
+      await supabaseAdmin.from("ai_content_jobs").update({ status: "failed", error_msg: "Timed out" }).eq("id", jobId)
+      await refundCredit(clientId, jobId, CREDITS_PER_ANGLE)
+    })
+    return { status: "timeout" }
   }
 )
