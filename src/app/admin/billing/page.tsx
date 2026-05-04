@@ -6,9 +6,10 @@ import Link from 'next/link'
 
 // 30 credits per generation.
 const PACKAGES = [
-  { id: 'growth', label: 'Growth', credits: 1260, price: '₦22,500', gens: 42,  savings: null,       popular: false },
-  { id: 'pro',    label: 'Pro',    credits: 1980, price: '₦35,000', gens: 66,  savings: '₦10,000',  popular: true  },
-  { id: 'scale',  label: 'Scale',  credits: 3000, price: '₦54,000', gens: 100, savings: '₦13,500',  popular: false },
+  { id: 'starter', label: 'Starter', credits: 1500, price: '₦15,000', gens: 50,  savings: null, popular: false },
+  { id: 'growth',  label: 'Growth',  credits: 3000, price: '₦30,000', gens: 100, savings: null, popular: false },
+  { id: 'pro',     label: 'Pro',     credits: 4500, price: '₦45,000', gens: 150, savings: null, popular: true  },
+  { id: 'scale',   label: 'Scale',   credits: 6000, price: '₦60,000', gens: 200, savings: null, popular: false },
 ]
 
 interface Transaction {

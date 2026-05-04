@@ -3,9 +3,10 @@ import { supabaseAdmin } from "@/lib/supabase-admin"
 import { CLIENT_ID } from "@/lib/config"
 
 const PACKAGES: Record<string, { credits: number; amount: number; label: string }> = {
-  growth: { credits: 1260, amount: 2250000, label: "Growth Pack" },
-  pro:    { credits: 1980, amount: 3500000, label: "Pro Pack"    },
-  scale:  { credits: 3000, amount: 5400000, label: "Scale Pack"  },
+  starter: { credits: 1500, amount: 1500000, label: "Starter Pack" },
+  growth:  { credits: 3000, amount: 3000000, label: "Growth Pack"  },
+  pro:     { credits: 4500, amount: 4500000, label: "Pro Pack"     },
+  scale:   { credits: 6000, amount: 6000000, label: "Scale Pack"   },
 }
 
 export async function POST(req: NextRequest) {
