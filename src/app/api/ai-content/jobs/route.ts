@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase-admin"
+import { CLIENT_ID } from "@/lib/config"
 
 export async function GET(req: NextRequest) {
   const parentId = new URL(req.url).searchParams.get("parentId")
@@ -8,6 +9,7 @@ export async function GET(req: NextRequest) {
     const { data, error } = await supabaseAdmin
       .from("ai_content_jobs")
       .select("*")
+      .eq("client_id", CLIENT_ID)
       .eq("parent_job_id", parentId)
       .order("created_at", { ascending: true })
 
@@ -16,10 +18,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(data)
   }
 
-  // Main list — only primary image jobs
   const { data, error } = await supabaseAdmin
     .from("ai_content_jobs")
     .select("*")
+    .eq("client_id", CLIENT_ID)
     .eq("type", "image")
     .order("created_at", { ascending: false })
     .limit(50)
@@ -29,10 +31,13 @@ export async function GET(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const { searchParams } = new URL(req.url)
-  const id = searchParams.get("id")
+  const id = new URL(req.url).searchParams.get("id")
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 })
-  const { error } = await supabaseAdmin.from("ai_content_jobs").delete().eq("id", id)
+  const { error } = await supabaseAdmin
+    .from("ai_content_jobs")
+    .delete()
+    .eq("id", id)
+    .eq("client_id", CLIENT_ID)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }
