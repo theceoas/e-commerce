@@ -198,6 +198,7 @@ export default function ProductsManagement() {
             .from('brands')
             .select('id, name, image_url, is_active, description')
             .eq('is_active', true)
+            .eq('client_id', CLIENT_ID)
             .order('name')
         ])
 
@@ -255,6 +256,7 @@ export default function ProductsManagement() {
         .from('brands')
         .select('id, name, image_url, is_active, description')
         .eq('is_active', true)
+        .eq('client_id', CLIENT_ID)
         .order('name')
 
       if (error) throw error

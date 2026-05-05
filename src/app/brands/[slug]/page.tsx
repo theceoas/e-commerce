@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { notFound } from 'next/navigation'
+import { CLIENT_ID } from '@/lib/config'
 import BrandContent from '@/components/brand-content'
 import { Metadata } from 'next'
 
@@ -14,6 +15,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     .select('name, description, image_url')
     .ilike('name', `%${brandName}%`)
     .eq('is_active', true)
+    .eq('client_id', CLIENT_ID)
     .single()
 
   if (!brand) {
@@ -56,6 +58,7 @@ export default async function BrandPage({ params }: { params: Promise<{ slug: st
     .select('*')
     .ilike('name', `%${brandName}%`)
     .eq('is_active', true)
+    .eq('client_id', CLIENT_ID)
     .single()
 
   // Fallback: If "FavoriteThings" not found, try "Others" (legacy name)
@@ -65,6 +68,7 @@ export default async function BrandPage({ params }: { params: Promise<{ slug: st
       .select('*')
       .ilike('name', '%others%')
       .eq('is_active', true)
+      .eq('client_id', CLIENT_ID)
       .single()
 
     if (fallbackBrand) {

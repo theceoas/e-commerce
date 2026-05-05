@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/utils/supabase/client'
+import { CLIENT_ID } from '@/lib/config'
 
 const supabase = createClient()
 
@@ -183,6 +184,7 @@ export function useBrands() {
         .from('brands')
         .select('*')
         .eq('is_active', true)
+        .eq('client_id', CLIENT_ID)
         .order('display_order', { ascending: true })
 
       if (error) throw error
@@ -257,6 +259,7 @@ export function useBrandProducts(brandSlug: string) {
         .from('brands')
         .select('id')
         .ilike('name', `%${brandSlug.replace('-', ' ')}%`)
+        .eq('client_id', CLIENT_ID)
         .single()
 
       if (brandError) throw brandError

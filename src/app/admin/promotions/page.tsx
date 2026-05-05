@@ -125,6 +125,7 @@ export default function PromotionsManagement() {
         .from('brands')
         .select('id, name')
         .eq('is_active', true)
+        .eq('client_id', CLIENT_ID)
         .order('name')
 
       if (error) throw error

@@ -24,6 +24,7 @@ import {
 import { createClient } from "@/utils/supabase/client"
 import { toast } from "sonner"
 import { uploadBrandImage, deleteBrandImage } from "@/lib/storage"
+import { CLIENT_ID } from "@/lib/config"
 
 
 
@@ -67,6 +68,7 @@ export default function BrandsManagement() {
       const brandsPromise = supabase
         .from('brands')
         .select('*')
+        .eq('client_id', CLIENT_ID)
         .order('display_order', { ascending: true })
 
       const { data, error } = await Promise.race([

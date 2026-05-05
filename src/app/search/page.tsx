@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Search, Filter, ArrowLeft, Grid, List } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
+import { CLIENT_ID } from '@/lib/config'
 
 const supabase = createClient()
 import { useRouter } from 'next/navigation'
@@ -92,6 +93,7 @@ export default function SearchPage() {
           .from('brands')
           .select('id, name, image_url, description, display_order, is_active')
           .eq('is_active', true)
+          .eq('client_id', CLIENT_ID)
           .order('display_order')
       ])
 

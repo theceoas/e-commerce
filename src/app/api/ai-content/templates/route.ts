@@ -6,6 +6,7 @@ export async function GET() {
   const { data, error } = await supabaseAdmin
     .from("ai_content_templates")
     .select("*")
+    .eq("client_id", CLIENT_ID)
     .order("created_at", { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -35,7 +36,7 @@ export async function DELETE(req: NextRequest) {
   const id = searchParams.get("id")
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 })
 
-  const { error } = await supabaseAdmin.from("ai_content_templates").delete().eq("id", id)
+  const { error } = await supabaseAdmin.from("ai_content_templates").delete().eq("id", id).eq("client_id", CLIENT_ID)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }

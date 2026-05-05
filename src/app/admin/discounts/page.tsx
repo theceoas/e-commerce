@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import { supabase } from "@/lib/supabase"
+import { CLIENT_ID } from "@/lib/config"
 import { Loader2, Search, Tag, Filter, Save, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
@@ -65,6 +66,7 @@ export default function DiscountsPage() {
                 supabase
                     .from('brands')
                     .select('id, name')
+                    .eq('client_id', CLIENT_ID)
                     .order('name')
             ])
 
